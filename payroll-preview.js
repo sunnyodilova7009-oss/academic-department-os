@@ -41,6 +41,7 @@ export function calculatePayrollPreview({
   const lessonIds = new Set(payable.map(l => l.id));
   unique(enrollments, e => e.student_id + ":" + e.group_id + ":" + date(e.joined_at));
   const members = enrollments.filter(e => e.group_id === groupId);
+  if (members.some(e => !date(e.joined_at))) throw new Error("Enrollment joining date required");
   const eligible = (sid, day) => members.some(e => e.student_id === sid &&
     date(e.joined_at) && date(e.joined_at) <= day &&
     (!e.left_at || date(e.left_at) >= day));
@@ -54,8 +55,8 @@ export function calculatePayrollPreview({
     eligible(r.student_id, date(payable.find(l => l.id === r.lesson_id)?.lesson_date));
   unique(attendance.filter(r => lessonIds.has(r.lesson_id)), r => r.lesson_id + ":" + r.student_id);
   unique(homework.filter(r => lessonIds.has(r.lesson_id)), r => r.lesson_id + ":" + r.student_id);
-  const attendanceAmount = attendance.filter(r => eligibleRecord(r) && r.status === "Present").length * PAYROLL_RATES.present;
-  const homeworkAmount = homework.filter(r => eligibleRecord(r) && r.status === "Done").length * PAYROLL_RATES.homeworkDone;
+  const attendanceAmount = attendance.filter(r => eligibleRecord(r) && String(r.status).toLowerCase() === "present").length * PAYROLL_RATES.present;
+  const homeworkAmount = homework.filter(r => eligibleRecord(r) && String(r.status).toLowerCase() === "done").length * PAYROLL_RATES.homeworkDone;
   const studentScores = new Map();
   unique(assessments.filter(a => a.group_id === groupId && a.month === month), a => a.assessment_id + ":" + a.student_id);
   for (const a of assessments) {
@@ -67,7 +68,7 @@ export function calculatePayrollPreview({
   }
   const assessmentBonus = [...studentScores.values()].reduce((sum, scores) =>
     sum + scoreBonus(scores.reduce((a, b) => a + b, 0) / scores.length), 0);
-  unique(retention, r => r.checkpoint + ":" + r.group_id);
+  unique(retention, r => r.checkpoint + ":" + r.group_id + ":" + r.month);
   let retentionBonus = 0;
   for (const checkpoint of retention) {
     if (checkpoint.group_id !== groupId || checkpoint.month !== month) continue;
