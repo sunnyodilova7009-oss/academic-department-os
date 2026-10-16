@@ -22,5 +22,6 @@ export function calculateFromAcademicRows(input) {
     retention: input.retention || [],
     adjustments: input.adjustments || 0,
     coverTransfers: input.coverTransfers || 0,
+    coverAssignments: input.coverAssignments || [],
   });
 }
