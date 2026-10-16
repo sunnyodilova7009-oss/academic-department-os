@@ -3,6 +3,8 @@ import { calculatePayrollPreview } from "./payroll-preview.js";
 // Read-only conversion of existing Supabase column names.
 export function calculateFromAcademicRows(input) {
   const { month, groupId, teacherId, lessons, members, attendance, homework } = input;
+  if ((input.coverAssignments || []).length && !input.groupTeacherId)
+    throw new Error("Group teacher ID required for covered lessons");
   return calculatePayrollPreview({
     month, groupId, teacherId,
     lessons: lessons.map(row => ({
