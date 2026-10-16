@@ -1,1 +1,24 @@
-{"scripts":{"build":"vite build"},"dependencies":{"@supabase/supabase-js":"^2.57.4","@vitejs/plugin-react":"latest","vite":"latest","react":"latest","react-dom":"latest"},"devDependencies":{}}
+{
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.118.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "vite": "8.3.4"
+  },
+  "devDependencies": {
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.8",
+    "jsdom": "29.1.1",
+    "prettier": "3.9.10",
+    "vitest": "5.0.5"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.16.0"
+  }
+}
