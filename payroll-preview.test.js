@@ -55,3 +55,22 @@ describe("salary preview", () => {
     expect(() => calculate({ ...base, attendance: [row, row] })).toThrow(/Duplicate/);
   });
 });
+
+it("allocates fixed attendance and homework to substitute only", () => {
+  const lesson = { ...base.lessons[5], teacher_id: "t1" };
+  const coverAssignments = [{ lesson_id: lesson.id, original_teacher_id: "t1", cover_teacher_id: "t2" }];
+  const input = { ...base, lessons: [lesson], coverAssignments,
+    attendance: [{ lesson_id: lesson.id, student_id: "s1", status: "Present" }],
+    homework: [{ lesson_id: lesson.id, student_id: "s1", status: "Done" }],
+  };
+  const original = calculate(input);
+  const substitute = calculate({ ...input, teacherId: "t2" });
+  expect(original.fixed_amount + original.attendance_amount + original.homework_amount).toBe(0);
+  expect(substitute.fixed_amount).toBeCloseTo(50000 / 12);
+  expect(substitute.attendance_amount).toBe(5000);
+  expect(substitute.homework_amount).toBe(3500);
+});
+it("rejects conflicting cover assignments for one lesson", () => {
+  const cover = { lesson_id: "l6", original_teacher_id: "t1", cover_teacher_id: "t2" };
+  expect(() => calculate({ ...base, coverAssignments: [cover, cover] })).toThrow(/Duplicate/);
+});
