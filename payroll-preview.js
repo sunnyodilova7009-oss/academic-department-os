@@ -43,12 +43,15 @@ export function calculatePayrollPreview({
   const coverByLesson = new Map(coverAssignments.map(a => [a.lesson_id, a]));
   for (const cover of coverAssignments) {
     if (!lessonIds.has(cover.lesson_id)) throw new Error("Cover lesson must be payable in selected month");
+    const coveredLesson = payable.find(l => l.id === cover.lesson_id);
+    if (coveredLesson.teacher_id && coveredLesson.teacher_id !== cover.original_teacher_id)
+      throw new Error("Cover original teacher does not match lesson owner");
     if (!cover.original_teacher_id || !cover.cover_teacher_id || cover.original_teacher_id === cover.cover_teacher_id)
       throw new Error("Cover assignment needs two distinct teachers");
   }
   const creditedToTeacher = lesson => {
     const cover = coverByLesson.get(lesson.id);
-    return cover ? cover.cover_teacher_id === teacherId : (!lesson.teacher_id || lesson.teacher_id === teacherId);
+    return cover ? cover.cover_teacher_id === teacherId : lesson.teacher_id === teacherId;
   };
   unique(enrollments, e => e.student_id + ":" + e.group_id + ":" + date(e.joined_at));
   const members = enrollments.filter(e => e.group_id === groupId);
