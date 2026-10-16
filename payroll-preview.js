@@ -30,7 +30,7 @@ const unique = (items, key) => {
 export function calculatePayrollPreview({
   month, groupId, teacherId, lessons = [], enrollments = [],
   attendance = [], homework = [], assessments = [],
-  retention = [], adjustments = 0, coverTransfers = 0,
+  retention = [], adjustments = 0, coverTransfers = 0, coverAssignments = [],
 }) {
   if (!validMonth(month) || !groupId || !teacherId) throw new Error("Payroll scope required");
   if (Object.hasOwn(HISTORICAL_LOCKED_MONTHS, month))
@@ -39,6 +39,17 @@ export function calculatePayrollPreview({
     date(l.lesson_date).slice(0, 7) === month && l.payable === true);
   unique(payable, l => l.id);
   const lessonIds = new Set(payable.map(l => l.id));
+  unique(coverAssignments, a => a.lesson_id);
+  const coverByLesson = new Map(coverAssignments.map(a => [a.lesson_id, a]));
+  for (const cover of coverAssignments) {
+    if (!lessonIds.has(cover.lesson_id)) throw new Error("Cover lesson must be payable in selected month");
+    if (!cover.original_teacher_id || !cover.cover_teacher_id || cover.original_teacher_id === cover.cover_teacher_id)
+      throw new Error("Cover assignment needs two distinct teachers");
+  }
+  const creditedToTeacher = lesson => {
+    const cover = coverByLesson.get(lesson.id);
+    return cover ? cover.cover_teacher_id === teacherId : (!lesson.teacher_id || lesson.teacher_id === teacherId);
+  };
   unique(enrollments, e => e.student_id + ":" + e.group_id + ":" + date(e.joined_at));
   const members = enrollments.filter(e => e.group_id === groupId);
   if (members.some(e => !date(e.joined_at))) throw new Error("Enrollment joining date required");
@@ -48,10 +59,12 @@ export function calculatePayrollPreview({
   let fixed = 0;
   for (const lesson of payable) {
     if (!date(lesson.lesson_date)) throw new Error("Lesson date required");
+    if (!creditedToTeacher(lesson)) continue;
     fixed += members.filter(e => eligible(e.student_id, date(lesson.lesson_date))).length *
       PAYROLL_RATES.fixedPerStudentCourse / PAYROLL_RATES.lessonsPerCourse;
   }
   const eligibleRecord = r => lessonIds.has(r.lesson_id) &&
+    creditedToTeacher(payable.find(l => l.id === r.lesson_id)) &&
     eligible(r.student_id, date(payable.find(l => l.id === r.lesson_id)?.lesson_date));
   unique(attendance.filter(r => lessonIds.has(r.lesson_id)), r => r.lesson_id + ":" + r.student_id);
   unique(homework.filter(r => lessonIds.has(r.lesson_id)), r => r.lesson_id + ":" + r.student_id);
