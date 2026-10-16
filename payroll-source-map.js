@@ -7,7 +7,7 @@ export function calculateFromAcademicRows(input) {
     month, groupId, teacherId,
     lessons: lessons.map(row => ({
       id: row.id, group_id: row.group_id, lesson_date: row.lesson_date,
-      payable: row.payroll_payable === true,
+      payable: row.payroll_payable === true, teacher_id: input.groupTeacherId || teacherId,
     })),
     enrollments: members.map(row => ({
       group_id: row.group_id, student_id: row.student_id,
