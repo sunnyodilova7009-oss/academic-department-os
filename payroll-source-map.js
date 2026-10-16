@@ -14,7 +14,11 @@ export function calculateFromAcademicRows(input) {
       joined_at: row.joined_at, left_at: row.left_at,
     })),
     attendance, homework,
-    assessments: input.assessments || [],
+    assessments: (input.exams && input.scores) ? input.scores.filter(score => input.exams.some(exam => exam.id === score.exam_id && exam.group_id === groupId && String(exam.exam_date).startsWith(month))).map(score => {
+      const exam = input.exams.find(exam => exam.id === score.exam_id);
+      if (!(Number(exam.max_score) > 0) || score.score == null) throw new Error("Assessment needs score and positive max_score");
+      return { assessment_id: score.exam_id, student_id: score.student_id, group_id: groupId, month, score: Number(score.score) * 100 / Number(exam.max_score) };
+    }) : (input.assessments || []),
     retention: input.retention || [],
     adjustments: input.adjustments || 0,
     coverTransfers: input.coverTransfers || 0,
