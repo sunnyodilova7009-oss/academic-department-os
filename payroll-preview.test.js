@@ -3,7 +3,7 @@ import { calculatePayrollPreview as calculate } from "./payroll-preview.js";
 const base = {
   month: "2026-10", groupId: "g1", teacherId: "t1",
   lessons: Array.from({ length: 12 }, (_, i) => ({
-    id: "l" + (i + 1), group_id: "g1",
+    id: "l" + (i + 1), group_id: "g1", teacher_id: "t1",
     lesson_date: "2026-10-" + String(i + 1).padStart(2, "0"), payable: true,
   })),
   enrollments: [{ student_id: "s1", group_id: "g1", joined_at: "2026-10-06" }],
