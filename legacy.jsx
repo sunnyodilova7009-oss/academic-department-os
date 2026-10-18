@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { sb } from "./client.js";
 import { AcademicSheet, Table } from "./components.jsx";
 import { localDate, nextLessonNumber, validDate, courseLessons } from "./logic.js";
+import { GroupEditor, LessonEditor } from './admin-editors.jsx';
 
 export function Students({ d }) {
   const [name, setName] = useState(""),
@@ -181,41 +182,9 @@ export function Students({ d }) {
 }
 export function Groups({ d, onRecordSaved }) {
   const [open, setOpen] = useState(null);
+  const [groupEditor,setGroupEditor]=useState(null),[lessonGroup,setLessonGroup]=useState(null);
   async function lesson(g) {
-    const next = nextLessonNumber(d.lessons, g.id);
-    const number = prompt("Lesson number", String(next));
-    if (number === null) return;
-    if (!Number.isInteger(Number(number)) || Number(number) < 1)
-      return alert("Enter a positive whole lesson number.");
-    if (
-      courseLessons(d.lessons,g.id).some(
-        (x) =>
-          x.group_id === g.id && Number(x.lesson_number) === Number(number),
-      )
-    )
-      return alert("This lesson number already exists in this group.");
-    const date = prompt("Lesson date (YYYY-MM-DD)", localDate());
-    if (date === null) return;
-    if (!validDate(date)) return alert("Enter a valid date as YYYY-MM-DD.");
-    const payable = confirm(
-      "OK = Payable lesson. Cancel = Review / non-payable.",
-    );
-    try {
-      const result = await sb
-        .from("lessons")
-        .insert({
-          group_id: g.id,
-          lesson_number: Number(number),
-          lesson_date: date,
-          payroll_payable: payable,
-        })
-        .select()
-        .single();
-      if (result.error) throw result.error;
-      location.reload();
-    } catch (e) {
-      alert(e.message);
-    }
+    setLessonGroup(g);
   }
   async function metric(g, n, current) {
     let v = prompt("Student count for course month " + n, current ?? "");
@@ -248,8 +217,10 @@ export function Groups({ d, onRecordSaved }) {
     if (r.error) alert(r.error.message);
     else location.reload();
   }
+  const lessonForm=lessonGroup?<LessonEditor key={lessonGroup.id} group={lessonGroup} lessons={d.lessons} onCancel={()=>setLessonGroup(null)} onSaved={row=>{onRecordSaved?.('lessons',row);setLessonGroup(null);}}/>:null;
   if (open)
     return (
+      <>{lessonForm}
       <AcademicSheet
         key={open}
         g={d.groups.find((x) => x.id === open)}
@@ -257,23 +228,10 @@ export function Groups({ d, onRecordSaved }) {
         back={() => setOpen(null)}
         addLesson={lesson}
         onRecordSaved={onRecordSaved}
-      />
+      /></>
     );
   async function createGroup() {
-    let name = prompt("Group name");
-    if (!name) return;
-    let start = prompt(
-      "Start date YYYY-MM-DD",
-      new Date().toISOString().slice(0, 10),
-    );
-    if (!start) return;
-    let r = await sb
-      .from("groups")
-      .insert({ name, start_date: start, active: true })
-      .select()
-      .single();
-    if (r.error) alert(r.error.message);
-    else location.reload();
+    setGroupEditor({});
   }
   async function createIntake() {
     let name = prompt("New intake name");
@@ -290,6 +248,8 @@ export function Groups({ d, onRecordSaved }) {
         <button onClick={createIntake}>+ Create Intake</button>
         <span>{d.intakes?.length || 0} intakes</span>
       </div>
+      {groupEditor&&<GroupEditor key={groupEditor.id||'new'} group={groupEditor.id?groupEditor:null} teachers={d.teachers||[]} onCancel={()=>setGroupEditor(null)} onSaved={row=>{onRecordSaved?.('groups',row);setGroupEditor(null);}}/>}
+      {lessonForm}
       <Table
         heads={[
           "Group",
@@ -340,6 +300,7 @@ export function Groups({ d, onRecordSaved }) {
             <span>
               <button onClick={() => setOpen(g.id)}>Open</button>{" "}
               <button onClick={() => lesson(g)}>+ Add Lesson</button>
+              <button onClick={()=>setGroupEditor(g)}>Edit group</button>
             </span>,
           ];
         })}
