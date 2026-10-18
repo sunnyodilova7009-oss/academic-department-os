@@ -109,9 +109,9 @@ const fixture = () => ({
     {
       payroll_period_id: "p2",
       group_id: "g1",
-      total_amount: 6442833,
+      total_amount: 11467345.68,
       fixed_amount: 6000000,
-      adjustments: 442833,
+      adjustments: 5467345.68,
     },
   ],
   payments: [
@@ -409,11 +409,11 @@ describe("monthly counts and finance", () => {
       ).toThrow();
     expect(validDate("2026-02-28")).toBe(true);
   });
-  it("preserves approved payroll totals and shows the stored component explanation", () => {
+  it("matches the reconciled September total and preserves the August total", () => {
     const d = fixture(),
       before = JSON.stringify(d.payroll);
     render(<Payroll d={d} />);
-    expect(screen.getByText("Matches approved total: 6,442,833")).toBeTruthy();
+    expect(screen.getByText("Matches approved total: 11,467,346")).toBeTruthy();
     fireEvent.change(screen.getByRole("combobox", { name: "Period" }), {
       target: { value: "p1" },
     });
