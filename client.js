@@ -23,7 +23,16 @@ export const tables = {
   teachers: "teachers",
   rosters: "group_student_months",
   rosterHistory: "student_roster_history",
+  profiles: "profiles",
 };
+
+export async function inviteAcademicAdmin({ email, fullName }) {
+  const { data, error } = await sb.functions.invoke("invite-academic-admin", {
+    body: { email, fullName },
+  });
+  if (error) throw new Error(error.message || "Could not send the invitation.");
+  return data.profile;
+}
 
 export async function readAll(table) {
   const rows = [];
