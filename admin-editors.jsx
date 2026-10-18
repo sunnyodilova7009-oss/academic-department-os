@@ -4,6 +4,7 @@ import { localDate, nextLessonNumber, courseLessons, validDate } from './logic.j
 
 export function GroupEditor({ group, teachers, onSaved, onCancel }) {
   const [name,setName]=useState(group?.name||''), [teacher,setTeacher]=useState(group?.teacher_id||''), [start,setStart]=useState(group?.start_date||localDate());
+  const [active,setActive]=useState(group?.active!==false);
   const [busy,setBusy]=useState(false), [error,setError]=useState('');
   const pending=useRef(false);
   async function save(e){
@@ -11,7 +12,7 @@ export function GroupEditor({ group, teachers, onSaved, onCancel }) {
     if(!name.trim()||!teacher||!validDate(start)){setError('Enter a name, teacher and valid start date.');return;}
     pending.current=true;setBusy(true);setError('');
     try{
-      const payload={name:name.trim(),teacher_id:teacher,start_date:start};
+      const payload={name:name.trim(),teacher_id:teacher,start_date:start,active};
       const request=group?sb.from('groups').update(payload).eq('id',group.id):sb.from('groups').insert({...payload,active:true});
       const {data,error}=await request.select().single();if(error)throw error;
       onSaved(data);
@@ -21,6 +22,7 @@ export function GroupEditor({ group, teachers, onSaved, onCancel }) {
     <label>Group name <input required value={name} onChange={e=>setName(e.target.value)}/></label>
     <label>Teacher <select required value={teacher} onChange={e=>setTeacher(e.target.value)}><option value="">Choose teacher</option>{teachers.filter(t=>t.active!==false||t.id===teacher).map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
     <label>Start date <input required type="date" value={start} onChange={e=>setStart(e.target.value)}/></label>
+    {group&&<label className="status-toggle"><input type="checkbox" checked={active} onChange={e=>setActive(e.target.checked)}/>{active?'Active group':'Closed group'}</label>}
     <button disabled={busy}>{busy?'Saving…':'Save group'}</button><button type="button" disabled={busy} onClick={onCancel}>Cancel</button>{error&&<p className="error" role="alert">{error}</p>}
   </form>;
 }
@@ -43,7 +45,7 @@ export function LessonEditor({ group, lessons, onSaved, onCancel }) {
   return <form className="formbar" onSubmit={save}><h3>{group.name} — Add lesson</h3>
     <label>Lesson number <input required type="number" min="1" step="1" value={number} onChange={e=>setNumber(e.target.value)}/></label>
     <label>Lesson date <input required type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
-    <label>Lesson type <select value={lessonType} onChange={e=>setLessonType(e.target.value)}><option value="regular">Regular lesson</option><option value="review">Review lesson (LIVE pay only)</option><option value="unpaid">Unpaid lesson</option></select></label>
+    <label>Lesson type <select value={lessonType} onChange={e=>setLessonType(e.target.value)}><option value="regular">Regular lesson</option><option value="review">Review lesson (LIVE pay only)</option></select></label>
     <button disabled={busy}>{busy?'Saving…':'Save lesson'}</button><button type="button" disabled={busy} onClick={onCancel}>Cancel</button>{error&&<p className="error" role="alert">{error}</p>}
   </form>;
 }
