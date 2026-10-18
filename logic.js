@@ -94,6 +94,5 @@ export const payrollPartsTotal = (row) =>
     "assessment_bonus",
     "retention_bonus",
     "adjustments",
-    "cover_transfer",
-  ].reduce((sum, field) => sum + Number(row[field] || 0), 0);
+  ].reduce((sum, field) => sum + Number(row[field] || 0), 0) - Number(row.cover_transfer || 0);
 export const approvedPayroll = { "2026-08": 8432332, "2026-09": 6442833 };

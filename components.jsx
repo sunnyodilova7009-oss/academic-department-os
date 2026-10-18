@@ -125,7 +125,7 @@ export function App({ Students, Groups }) {
     return () => {
       alive = false;
     };
-  }, [userId, revision]);
+  }, [userId, revision, page]);
   const refresh = () => setRevision((value) => value + 1);
   function recordSaved(table, row) {
     const matches = (x) =>
