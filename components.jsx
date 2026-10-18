@@ -27,7 +27,7 @@ const nav = [
   "Finance",
 ];
 const financeOnlyTables = new Set(["periods", "payroll", "payments"]);
-const financeRoles = new Set(["owner_admin", "academic_manager", "finance"]);
+const financeRoles = new Set(["owner_admin", "academic_manager", "finance", "academic_admin"]);
 const emptyData = Object.fromEntries(
   Object.keys(tables).map((key) => [key, []]),
 );
@@ -267,7 +267,7 @@ export function App({ Students, Groups }) {
             ) : page === "Payroll" && canViewFinance ? (
               <Payroll d={data} />
             ) : page === "Finance" && canViewFinance ? (
-              <Finance d={data} refresh={refresh} onRecordSaved={recordSaved} />
+              <Finance d={data} refresh={refresh} onRecordSaved={recordSaved} readOnly={academicOnly} />
             ) : (
               <p role="alert">This page is not available for your account.</p>
             )}
@@ -382,7 +382,7 @@ function AdminAccess({ onInvited }) {
   const [error, setError] = useState("");
   return <section className="panel admin-access">
     <h2>Invite an academic admin</h2>
-    <p>They can manage students, groups, lessons, attendance, homework, and assessments. Payroll and finance stay private.</p>
+    <p>They can manage students, groups, lessons, attendance, homework, and assessments. Payroll and finance are view-only.</p>
     <form onSubmit={async (event) => {
       event.preventDefault(); setBusy(true); setError(""); setMessage("");
       try {
@@ -917,7 +917,7 @@ export function Payroll({ d }) {
   );
 }
 
-export function Finance({ d, refresh, onRecordSaved }) {
+export function Finance({ d, refresh, onRecordSaved, readOnly = false }) {
   const [show, setShow] = useState(false),
     [gid, setGid] = useState(""),
     [sid, setSid] = useState(""),
@@ -1033,7 +1033,7 @@ export function Finance({ d, refresh, onRecordSaved }) {
         <label>Group <select aria-label="Filter payments by group" value={groupFilter} onChange={e=>setGroupFilter(e.target.value)}><option value="All">All groups</option>{d.groups.map(g=><option key={g.id} value={g.id}>{displayGroupName(g.name)}</option>)}</select></label>
         <label>Intake <select aria-label="Filter payments by intake" value={intakeFilter} onChange={e=>setIntakeFilter(e.target.value)}><option value="All">All intakes</option>{d.intakes.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select></label>
         <label>Sort by <select aria-label="Sort payments by" value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="date">Date</option><option value="group">Group</option><option value="intake">Intake</option></select></label>
-        <button onClick={() => setShow((v) => !v)}>+ Add Payment</button>
+        {readOnly ? <span className="hint">View only</span> : <button onClick={() => setShow((v) => !v)}>+ Add Payment</button>}
         {refresh && (
           <button disabled={busy} onClick={refresh}>
             Refresh payments
@@ -1046,7 +1046,7 @@ export function Finance({ d, refresh, onRecordSaved }) {
           {error}
         </p>
       )}
-      {show && (
+      {show && !readOnly && (
         <form className="formbar" onSubmit={save}>
           <label>
             Group{" "}
@@ -1144,3 +1144,4 @@ export function Finance({ d, refresh, onRecordSaved }) {
     </>
   );
 }
+
