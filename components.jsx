@@ -13,7 +13,10 @@ import {
   payrollPartsTotal,
   payrollTotal,
   retentionLabel,
+  topGroupsByPerformance,
+  topTeachersByRetention,
   validDate,
+  yearlyFinanceSeries,
 } from "./logic.js";
 
 const nav = [
@@ -280,8 +283,65 @@ export function Dashboard({ d }) {
       </div>
       <p className="hint">{hasMonthlyRoster?'Student and group counts use the selected month’s roster. Lessons use recorded calendar dates.':hasHistoricalRoster?'Student and group counts use the imported historical roster. Left status is counted only when marked in the source roster. Lessons use recorded calendar dates.':'Historical counts use available join/leave dates. Groups count groups with lessons that month; missing dates make student counts estimates.'}</p>
       <RetentionChart d={d} />
+      <DashboardCharts d={d} month={month} />
     </>
   );
+}
+
+const pct = (value) => value == null ? "—" : `${Math.round(value)}%`;
+const monthLabel = (value) => new Date(`${value}-01T00:00:00`).toLocaleDateString("en", { month: "short" });
+
+function DashboardCharts({ d, month }) {
+  const [courseMonth, setCourseMonth] = useState("2");
+  const [groupMetric, setGroupMetric] = useState("combined");
+  const years = [...new Set([
+    ...(d.payments || []).map((payment) => payment.payment_date?.slice(0, 4)),
+    ...(d.periods || []).map((period) => period.period_month?.slice(0, 4)),
+  ].filter(Boolean))].sort().reverse();
+  const [yearChoice, setYearChoice] = useState("");
+  const year = years.includes(yearChoice) ? yearChoice : years[0] || String(new Date().getFullYear());
+  const teachers = topTeachersByRetention(d, courseMonth);
+  const groups = topGroupsByPerformance(d, month, groupMetric);
+  const finance = yearlyFinanceSeries(d, year);
+  const metricName = { combined: "Combined", attendance: "Attendance", homework: "Homework", assessment: "Assessment" }[groupMetric];
+  const salaryMax = Math.max(1, ...Object.values(finance.salary));
+  const financialMax = Math.max(salaryMax, ...Object.values(finance.income));
+  return <div className="dashboard-chart-grid">
+    <section className="panel chart-panel" aria-label="Top teachers by retention">
+      <div className="chart-heading"><div><h2>Top 5 Teachers by Retention</h2><p className="hint">Weighted across the teacher’s groups at the selected course checkpoint.</p></div>
+        <label>Checkpoint <select aria-label="Retention checkpoint" value={courseMonth} onChange={(event) => setCourseMonth(event.target.value)}><option value="2">M1 → M2</option><option value="3">M2 → M3</option></select></label>
+      </div>
+      {teachers.length ? teachers.map((teacher, index) => <div className="leader-row" key={teacher.teacherId}>
+        <span className="leader-rank">{index + 1}</span><span className="leader-name">{teacher.name}<small>{teacher.retained} of {teacher.baseline} students · {teacher.groups} {teacher.groups === 1 ? "group" : "groups"}</small></span>
+        <div className="retention-track"><div className="retention-fill" style={{ width: `${Math.min(100, teacher.retention)}%` }} role="progressbar" aria-label={`${teacher.name} retention`} aria-valuenow={Math.round(teacher.retention)} aria-valuemin="0" aria-valuemax="100" /></div><b>{pct(teacher.retention)}</b>
+      </div>) : <p className="hint">No comparable retention records for this checkpoint yet.</p>}
+    </section>
+
+    <section className="panel chart-panel" aria-label="Top groups by performance">
+      <div className="chart-heading"><div><h2>Top 5 Groups</h2><p className="hint">Performance for {month || "the selected month"}. Combined score averages available measures equally.</p></div>
+        <label>Rank by <select aria-label="Group chart metric" value={groupMetric} onChange={(event) => setGroupMetric(event.target.value)}><option value="combined">Combined score</option><option value="attendance">Attendance</option><option value="homework">Homework</option><option value="assessment">Assessment</option></select></label>
+      </div>
+      {groups.length ? groups.map((group, index) => <div className="group-leader" key={group.groupId}>
+        <div className="group-leader-title"><b>{index + 1}. {group.name}</b><strong>{pct(group[groupMetric])}</strong></div>
+        <div className="retention-track"><div className="retention-fill" style={{ width: `${Math.min(100, group[groupMetric])}%` }} role="progressbar" aria-label={`${group.name} ${metricName.toLowerCase()} score`} aria-valuenow={Math.round(group[groupMetric])} aria-valuemin="0" aria-valuemax="100" /></div>
+        <small>Attendance {pct(group.attendance)} · Homework {pct(group.homework)} · Assessment {pct(group.assessment)}</small>
+      </div>) : <p className="hint">No recorded attendance, homework, or assessment results for this month yet.</p>}
+    </section>
+
+    <section className="panel chart-panel annual-chart" aria-label="Yearly income and salaries">
+      <div className="chart-heading"><div><h2>Income and Salaries by Year</h2><p className="hint">Income uses dated cash payments. Salaries include approved payroll only.</p></div>
+        <label>Year <select aria-label="Finance chart year" value={year} onChange={(event) => setYearChoice(event.target.value)}>{years.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+      </div>
+      <div className="annual-legend"><span><i className="legend-income" />Income</span><span><i className="legend-salary" />Approved salaries</span></div>
+      <div className="annual-bars" role="img" aria-label={`${year} monthly income and approved salary chart`}>
+        {finance.months.map((value) => <div className="annual-month" key={value} title={`${monthLabel(value)} ${year}: income ${finance.datedIncomeRows ? fmt(finance.income[value]) : "no dated records"}; salaries ${fmt(finance.salary[value])}`}>
+          <div className="annual-bar-pair"><div className={finance.datedIncomeRows ? "annual-bar income-bar" : "annual-bar no-data-bar"} style={{ height: `${finance.datedIncomeRows ? Math.max(0, finance.income[value] / financialMax * 100) : 0}%` }} /><div className="annual-bar salary-bar" style={{ height: `${Math.max(0, finance.salary[value] / financialMax * 100)}%` }} /></div>
+          <small>{monthLabel(value)}</small>
+        </div>)}
+      </div>
+      {!finance.datedIncomeRows && <p className="hint">Income can’t be charted by month yet: existing cash payment records have no payment dates. New payments with dates will appear here.</p>}
+    </section>
+  </div>;
 }
 
 function RetentionChart({ d }) {
@@ -1027,3 +1087,4 @@ export function Finance({ d, refresh, onRecordSaved }) {
     </>
   );
 }
+

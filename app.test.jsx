@@ -217,6 +217,26 @@ describe("navigation and groups", () => {
   });
 });
 
+describe("dashboard charts", () => {
+  it("shows teacher retention, adjustable group rankings, and yearly finance controls", () => {
+    const d = fixture();
+    d.groups[0].teacher_id = "t1";
+    d.teachers = [{ id: "t1", name: "Amina" }];
+    d.metrics = [
+      { group_id: "g1", course_month: 2, student_count: 18, baseline_from_previous: 20, retained_from_previous: 18 },
+      { group_id: "g1", course_month: 3, student_count: 15, baseline_from_previous: 18, retained_from_previous: 15 },
+    ];
+    d.periods.forEach((period) => { period.status = "approved"; });
+    render(<Dashboard d={d} />);
+    expect(screen.getByText("Top 5 Teachers by Retention")).toBeTruthy();
+    expect(screen.getByText("Amina")).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Group chart metric" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Retention checkpoint" })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Finance chart year" }).value).toBe("2026");
+    expect(screen.getByRole("img", { name: "2026 monthly income and approved salary chart" })).toBeTruthy();
+  });
+});
+
 describe("academic records", () => {
   it("switches month, lesson, assessment and displays correct stored values", () => {
     const d = fixture();
@@ -425,3 +445,4 @@ describe("monthly counts and finance", () => {
     ).toBe(8432332);
   });
 });
+

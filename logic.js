@@ -121,9 +121,114 @@ export const payrollPartsTotal = (row) =>
     "adjustments",
   ].reduce((sum, field) => sum + Number(row[field] || 0), 0) - Number(row.cover_transfer || 0);
 export const approvedPayroll = { "2026-08": 8432332, "2026-09": 11467346 };
+
+const percent = (value, total) => total > 0 ? value / total * 100 : null;
+
+export function groupPerformance(d, month) {
+  if (!month) return [];
+  const lessons = (d.lessons || []).filter((lesson) => dateOfLesson(lesson).startsWith(month));
+  const exams = (d.exams || []).filter((exam) => (exam.exam_date || "").startsWith(month));
+  const examIds = new Set(exams.map((exam) => exam.id));
+  return (d.groups || []).map((group) => {
+    const groupLessonIds = new Set(lessons.filter((lesson) => lesson.group_id === group.id).map((lesson) => lesson.id));
+    const groupExamIds = new Set(exams.filter((exam) => exam.group_id === group.id).map((exam) => exam.id));
+    const attendance = (d.attendance || []).filter((row) => groupLessonIds.has(row.lesson_id) && ["present", "absent"].includes(row.status));
+    const homework = (d.homework || []).filter((row) => groupLessonIds.has(row.lesson_id) && ["done", "partial", "missing"].includes(row.status));
+    let assessmentPoints = 0, possiblePoints = 0, assessments = 0;
+    const examById = new Map(exams.filter((exam) => groupExamIds.has(exam.id)).map((exam) => [exam.id, exam]));
+    for (const row of (d.scores || [])) {
+      const exam = examById.get(row.exam_id);
+      if (!exam || !examIds.has(row.exam_id)) continue;
+      const maxScore = Number(exam.max_score || 100);
+      const components = [row.test_score, row.speaking_score].filter((value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value)));
+      if (components.length) {
+        assessmentPoints += components.reduce((sum, value) => sum + Number(value), 0);
+        possiblePoints += maxScore * components.length;
+        assessments += components.length;
+      } else if (row.score !== null && row.score !== undefined && Number(row.score) > 0 && Number.isFinite(Number(row.score))) {
+        assessmentPoints += Number(row.score);
+        possiblePoints += maxScore;
+        assessments += 1;
+      }
+    }
+    const attendanceRate = percent(attendance.filter((row) => row.status === "present").length, attendance.length);
+    const homeworkRate = percent(homework.filter((row) => ["done", "partial"].includes(row.status)).length, homework.length);
+    const assessmentRate = percent(assessmentPoints, possiblePoints);
+    const available = [attendanceRate, homeworkRate, assessmentRate].filter((value) => value !== null);
+    return {
+      groupId: group.id,
+      name: displayGroupName(group.name),
+      attendance: attendanceRate,
+      homework: homeworkRate,
+      assessment: assessmentRate,
+      combined: available.length ? available.reduce((sum, value) => sum + value, 0) / available.length : null,
+      attendanceRecords: attendance.length,
+      homeworkRecords: homework.length,
+      assessmentRecords: assessments,
+    };
+  }).filter((row) => row.combined !== null);
+}
+
+export function topGroupsByPerformance(d, month, metric = "combined", limit = 5) {
+  return groupPerformance(d, month)
+    .filter((row) => row[metric] !== null && Number.isFinite(row[metric]))
+    .sort((a, b) => b[metric] - a[metric] || a.name.localeCompare(b.name))
+    .slice(0, limit);
+}
+
+export function topTeachersByRetention(d, courseMonth, limit = 5) {
+  const teachers = new Map((d.teachers || []).map((teacher) => [teacher.id, teacher.name]));
+  const groups = new Map((d.groups || []).map((group) => [group.id, group.teacher_id]));
+  const totals = new Map();
+  for (const metric of (d.metrics || [])) {
+    const baseline = Number(metric.baseline_from_previous);
+    const retained = Number(metric.retained_from_previous);
+    const teacherId = groups.get(metric.group_id);
+    if (Number(metric.course_month) !== Number(courseMonth) || !(baseline > 0) || !Number.isFinite(retained) || !teacherId || !teachers.has(teacherId)) continue;
+    const row = totals.get(teacherId) || { teacherId, name: teachers.get(teacherId), retained: 0, baseline: 0, groups: new Set() };
+    row.retained += retained;
+    row.baseline += baseline;
+    row.groups.add(metric.group_id);
+    totals.set(teacherId, row);
+  }
+  return [...totals.values()].map((row) => ({
+    teacherId: row.teacherId,
+    name: row.name,
+    retention: percent(row.retained, row.baseline),
+    retained: row.retained,
+    baseline: row.baseline,
+    groups: row.groups.size,
+  })).sort((a, b) => b.retention - a.retention || a.name.localeCompare(b.name)).slice(0, limit);
+}
+
+export function yearlyFinanceSeries(d, year) {
+  const prefix = String(year);
+  const months = Array.from({ length: 12 }, (_, index) => `${prefix}-${String(index + 1).padStart(2, "0")}`);
+  const income = Object.fromEntries(months.map((month) => [month, 0]));
+  const salary = Object.fromEntries(months.map((month) => [month, 0]));
+  let datedIncomeRows = 0;
+  for (const payment of (d.payments || [])) {
+    if (payment.counts_as_cash_payment === false || !(payment.payment_date || "").startsWith(prefix)) continue;
+    const month = payment.payment_date.slice(0, 7);
+    if (month in income) {
+      income[month] += Number(payment.amount || 0);
+      datedIncomeRows++;
+    }
+  }
+  const approvedPeriods = new Set((d.periods || []).filter((period) => period.status === "approved" && (period.period_month || "").startsWith(prefix)).map((period) => period.id));
+  for (const row of (d.payroll || [])) {
+    if (!approvedPeriods.has(row.payroll_period_id)) continue;
+    const period = (d.periods || []).find((candidate) => candidate.id === row.payroll_period_id);
+    const month = period?.period_month?.slice(0, 7);
+    if (month in salary) salary[month] += Number(row.total_amount || 0);
+  }
+  return { months, income, salary, datedIncomeRows };
+}
+
 export function displayGroupName(name = "") {
   return String(name).replace(/\b(pre[- ]inter(?:mediate)?|upper[- ]?inter(?:mediate)?|inter(?:mediate)?|elementary|beginner)\b/ig, (match) => {
     const key = match.toLowerCase().replace(/\s/g, "");
     return key.startsWith("pre") ? "Pre-intermediate" : key.startsWith("upper") ? "Upper-intermediate" : key.startsWith("inter") ? "Intermediate" : key[0].toUpperCase() + key.slice(1);
   });
 }
+
