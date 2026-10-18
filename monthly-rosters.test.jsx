@@ -7,6 +7,15 @@ import {Students,Groups} from './legacy.jsx';
 import {sb} from './client.js';
 vi.mock('./client.js',()=>({tables:{},readAll:vi.fn(),sb:{rpc:vi.fn(),from:vi.fn()}}));
 afterEach(cleanup);
+it('closes the lesson editor without changing the open academic sheet',()=>{
+ const d=fixture();render(<Groups d={d}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Open',exact:true}));
+ fireEvent.click(screen.getByRole('button',{name:'+ Add Lesson',exact:true}));
+ expect(screen.getByRole('button',{name:'Save lesson'})).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'Cancel',exact:true}));
+ expect(screen.queryByRole('button',{name:'Save lesson'})).toBeNull();
+ expect(screen.getByText('Group One — Academic Sheet')).toBeTruthy();
+});
 const fixture=()=>({students:[{id:'s',full_name:'Student One',status:'active'},{id:'old',full_name:'Old Student',status:'left'}],groups:[{id:'g',name:'Group One'}],members:[{group_id:'g',student_id:'s',active:true},{group_id:'g',student_id:'old',active:false}],metrics:[],intakes:[],teachers:[],lessons:[],exams:[],scores:[],attendance:[],homework:[],rosters:[{group_id:'g',student_id:'s',period_month:'2026-10-01',status:'active'}]});
 it('uses source monthly rosters instead of missing historical join dates',()=>{
  const d=fixture();d.rosters.push({group_id:'other',student_id:'s',period_month:'2026-10-01',status:'active'},{group_id:'g',student_id:'old',period_month:'2026-10-01',status:'left'});
