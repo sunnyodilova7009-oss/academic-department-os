@@ -208,7 +208,7 @@ export function Groups({ d, onRecordSaved }) {
   const lessonForm=lessonGroup?<LessonEditor key={lessonGroup.id} group={lessonGroup} lessons={d.lessons} onCancel={()=>setLessonGroup(null)} onSaved={row=>{onRecordSaved?.('lessons',row);setLessonGroup(null);}}/>:null;
   if (open)
     return (
-      <>{lessonForm}
+      <div className="group-academic-view"><div>{lessonForm}</div>
       <AcademicSheet
         key={open}
         g={d.groups.find((x) => x.id === open)}
@@ -216,7 +216,7 @@ export function Groups({ d, onRecordSaved }) {
         back={() => setOpen(null)}
         addLesson={lesson}
         onRecordSaved={onRecordSaved}
-      /></>
+      /></div>
     );
   async function createGroup() {
     setGroupEditor({});
