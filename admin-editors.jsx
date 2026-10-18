@@ -26,7 +26,7 @@ export function GroupEditor({ group, teachers, onSaved, onCancel }) {
 }
 
 export function LessonEditor({ group, lessons, onSaved, onCancel }) {
-  const [number,setNumber]=useState(String(nextLessonNumber(lessons,group.id))),[date,setDate]=useState(localDate),[payable,setPayable]=useState(true);
+  const [number,setNumber]=useState(String(nextLessonNumber(lessons,group.id))),[date,setDate]=useState(localDate),[lessonType,setLessonType]=useState('regular');
   const [busy,setBusy]=useState(false),[error,setError]=useState(''); const pending=useRef(false);
   async function save(e){
     e.preventDefault();if(pending.current)return;
@@ -36,14 +36,14 @@ export function LessonEditor({ group, lessons, onSaved, onCancel }) {
     if(!group.teacher_id){setError('Assign this group a teacher before adding a payable lesson.');return;}
     pending.current=true;setBusy(true);setError('');
     try{
-      const {data,error}=await sb.from('lessons').insert({group_id:group.id,lesson_number:Number(number),lesson_date:date,payroll_payable:payable}).select().single();if(error)throw error;
+      const {data,error}=await sb.from('lessons').insert({group_id:group.id,lesson_number:Number(number),lesson_date:date,payroll_payable:lessonType!=='unpaid',is_review:lessonType==='review'}).select().single();if(error)throw error;
       onSaved(data);
     }catch(e){setError(e.message);}finally{pending.current=false;setBusy(false);}
   }
   return <form className="formbar" onSubmit={save}><h3>{group.name} — Add lesson</h3>
     <label>Lesson number <input required type="number" min="1" step="1" value={number} onChange={e=>setNumber(e.target.value)}/></label>
     <label>Lesson date <input required type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
-    <label><input type="checkbox" checked={payable} onChange={e=>setPayable(e.target.checked)}/> Payable lesson</label>
+    <label>Lesson type <select value={lessonType} onChange={e=>setLessonType(e.target.value)}><option value="regular">Regular lesson</option><option value="review">Review lesson (LIVE pay only)</option><option value="unpaid">Unpaid lesson</option></select></label>
     <button disabled={busy}>{busy?'Saving…':'Save lesson'}</button><button type="button" disabled={busy} onClick={onCancel}>Cancel</button>{error&&<p className="error" role="alert">{error}</p>}
   </form>;
 }
