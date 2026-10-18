@@ -4,6 +4,7 @@ import {
   approvedPayroll,
   dashboardCounts,
   dateOfLesson,
+  courseLessons,
   localDate,
   monthsOf,
   paymentPayload,
@@ -251,8 +252,10 @@ export function Dashboard({ d }) {
   const [choice, setChoice] = useState("");
   const month = months.includes(choice) ? choice : months[0] || "";
   const counts = dashboardCounts(d, month);
+  const incompleteHistory = d.students.some(s => !s.joined_at || (['left','paused','graduated'].includes(s.status) && !s.left_at));
   return (
     <>
+      {incompleteHistory && <p role="status" className="hint">Historical student counts are estimates: imported join or leave dates are missing. Groups and lessons use recorded lesson dates.</p>}
       <div className="formbar">
         <label>
           Month{" "}
@@ -443,9 +446,7 @@ export function AcademicSheet({ g, d, back, addLesson, onRecordSaved }) {
         <p>Group could not be loaded. Please return to Groups.</p>
       </>
     );
-  const lessons = d.lessons
-    .filter((x) => x.group_id === g.id)
-    .sort((a, b) => Number(a.lesson_number) - Number(b.lesson_number));
+  const lessons = courseLessons(d.lessons, g.id);
   const exams = [
     ...d.exams,
     ...extraExams.filter((e) => !d.exams.some((x) => x.id === e.id)),

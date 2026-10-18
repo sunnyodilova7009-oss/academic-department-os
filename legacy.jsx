@@ -2,7 +2,7 @@ import React, { useState } from "react";
 
 import { sb } from "./client.js";
 import { AcademicSheet, Table } from "./components.jsx";
-import { localDate, nextLessonNumber, validDate } from "./logic.js";
+import { localDate, nextLessonNumber, validDate, courseLessons } from "./logic.js";
 
 export function Students({ d }) {
   const [name, setName] = useState(""),
@@ -188,7 +188,7 @@ export function Groups({ d, onRecordSaved }) {
     if (!Number.isInteger(Number(number)) || Number(number) < 1)
       return alert("Enter a positive whole lesson number.");
     if (
-      d.lessons.some(
+      courseLessons(d.lessons,g.id).some(
         (x) =>
           x.group_id === g.id && Number(x.lesson_number) === Number(number),
       )
