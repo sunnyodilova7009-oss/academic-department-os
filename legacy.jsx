@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 
 import { sb } from "./client.js";
 import { AcademicSheet, Table } from "./components.jsx";
-import { localDate, nextLessonNumber, validDate, courseLessons } from "./logic.js";
+import { localDate, nextLessonNumber, validDate, courseLessons, retentionLabel } from "./logic.js";
 import { GroupEditor, LessonEditor } from './admin-editors.jsx';
 
 export function Students({ d }) {
@@ -273,8 +273,8 @@ export function Groups({ d, onRecordSaved }) {
               Number(b) && cc != null
                 ? Math.round((cc / Number(b)) * 100) + "%"
                 : "—";
-          const retention=n=>{const metric=d.metrics?.find(x=>x.group_id===g.id&&Number(x.course_month)===n);return metric?.baseline_from_previous>0&&metric.retained_from_previous!=null?Math.round(metric.retained_from_previous/metric.baseline_from_previous*100)+'%':null;};
-          r12=retention(2)||r12;r23=retention(3)||r23;
+          const retention=n=>retentionLabel(d.metrics?.find(x=>x.group_id===g.id&&Number(x.course_month)===n),n===2?a:b);
+          r12=retention(2);r23=retention(3);
           return [
             g.name,
             <button className="editcell" onClick={() => intake(g)}>
