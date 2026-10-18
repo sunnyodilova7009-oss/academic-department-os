@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { sb, tables, readAll } from "./client.js";
+import { sb, tables, readAll, inviteAcademicAdmin } from "./client.js";
 import {
-  approvedPayroll,
   dashboardCounts,
   displayGroupName,
   dateOfLesson,
@@ -27,10 +26,35 @@ const nav = [
   "Payroll",
   "Finance",
 ];
+const financeOnlyTables = new Set(["periods", "payroll", "payments"]);
+const financeRoles = new Set(["owner_admin", "academic_manager", "finance"]);
 const emptyData = Object.fromEntries(
   Object.keys(tables).map((key) => [key, []]),
 );
 const fmt = (value) => Number(value || 0).toLocaleString("en-US");
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const isFutureJwtError = (error) =>
+  /PGRST303|JWT issued at future/i.test(error?.message || String(error));
+export async function readAppData(read = readAll, pause = wait, userId) {
+  const retryDelays = [1000, 2500, 5000];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const profiles = await read(tables.profiles);
+      const caller = profiles.find((profile) => profile.id === userId) || (userId ? null : profiles[0]);
+      if (!caller) throw new Error("No access profile exists for this account. Ask the owner to activate it.");
+      if (!caller.active) throw new Error("Your account is inactive. Ask the owner to restore access.");
+      const canViewFinance = financeRoles.has(caller.role);
+      const entries = await Promise.all(Object.entries(tables)
+        .filter(([key]) => key !== "profiles" && !( !canViewFinance && financeOnlyTables.has(key)))
+        .map(async ([key, table]) => [key, await read(table)]));
+      entries.push(["profiles", profiles]);
+      return Object.fromEntries(entries);
+    } catch (error) {
+      if (!isFutureJwtError(error) || attempt >= retryDelays.length) throw error;
+      await pause(retryDelays[attempt]);
+    }
+  }
+}
 export function Card({ n, t }) {
   return (
     <div className="card">
@@ -112,14 +136,9 @@ export function App({ Students, Groups }) {
     }
     setLoading(true);
     setError("");
-    Promise.all(
-      Object.entries(tables).map(async ([key, table]) => [
-        key,
-        await readAll(table),
-      ]),
-    )
-      .then((entries) => {
-        if (alive) setData(Object.fromEntries(entries));
+    readAppData(readAll, wait, userId)
+      .then((loaded) => {
+        if (alive) setData(loaded);
       })
       .catch((e) => {
         if (alive) setError(`Could not load data. ${e.message}`);
@@ -132,6 +151,12 @@ export function App({ Students, Groups }) {
     };
   }, [userId, revision]);
   const refresh = () => setRevision((value) => value + 1);
+  const profile = (data.profiles || []).find((row) => row.id === userId);
+  const academicOnly = profile?.active && profile.role === "academic_admin";
+  const canManageAdmins = profile?.active && profile.role === "owner_admin";
+  const canViewFinance = profile?.active && financeRoles.has(profile.role);
+  const visibleNav = nav.filter((name) =>
+    ((name !== "Payroll" && name !== "Finance") || canViewFinance) && (name !== "Support" || !academicOnly));
   function recordSaved(table, row) {
     const matches = (x) =>
       table === "scores"
@@ -195,7 +220,7 @@ export function App({ Students, Groups }) {
     <div className="app">
       <aside>
         <h2>Academic OS</h2>
-        {nav.map((name) => (
+        {visibleNav.map((name) => (
           <button
             key={name}
             className={page === name ? "on" : ""}
@@ -204,6 +229,7 @@ export function App({ Students, Groups }) {
             {name}
           </button>
         ))}
+        {canManageAdmins && <button className={page === "Admin Access" ? "on" : ""} onClick={() => setPage("Admin Access")}>Admin Access</button>}
         <button
           onClick={async () => {
             const result = await sb.auth.signOut();
@@ -226,7 +252,7 @@ export function App({ Students, Groups }) {
         ) : (
           <React.Fragment key={page}>
             {page === "Dashboard" ? (
-              <Dashboard d={data} />
+              <Dashboard d={data} showFinance={canViewFinance} />
             ) : page === "Students" ? (
               <Students d={data} refresh={refresh} onRecordSaved={recordSaved} />
             ) : page === "Groups" ? (
@@ -236,10 +262,14 @@ export function App({ Students, Groups }) {
                 <h2>Support</h2>
                 <p>On progress</p>
               </section>
-            ) : page === "Payroll" ? (
+            ) : page === "Admin Access" && canManageAdmins ? (
+              <AdminAccess onInvited={recordSaved} />
+            ) : page === "Payroll" && canViewFinance ? (
               <Payroll d={data} />
-            ) : (
+            ) : page === "Finance" && canViewFinance ? (
               <Finance d={data} refresh={refresh} onRecordSaved={recordSaved} />
+            ) : (
+              <p role="alert">This page is not available for your account.</p>
             )}
           </React.Fragment>
         )}
@@ -248,11 +278,11 @@ export function App({ Students, Groups }) {
   );
 }
 
-export function Dashboard({ d }) {
+export function Dashboard({ d, showFinance = true }) {
   const months = monthsOf([
     ...d.lessons.map(dateOfLesson),
     ...d.students.flatMap((s) => [s.joined_at, s.left_at]),
-    ...d.periods.map((p) => p.period_month),
+    ...(d.periods || []).map((p) => p.period_month),
     ...(d.rosters||[]).map(r=>r.period_month),
     ...(d.rosterHistory||[]).map(r=>r.source_type || r.source_month),
   ]);
@@ -283,7 +313,7 @@ export function Dashboard({ d }) {
       </div>
       <p className="hint">{hasMonthlyRoster?'Student and group counts use the selected month’s roster. Lessons use recorded calendar dates.':hasHistoricalRoster?'Student and group counts use the imported historical roster. Left status is counted only when marked in the source roster. Lessons use recorded calendar dates.':'Historical counts use available join/leave dates. Groups count groups with lessons that month; missing dates make student counts estimates.'}</p>
       <RetentionChart d={d} />
-      <DashboardCharts d={d} month={month} />
+      <DashboardCharts d={d} month={month} showFinance={showFinance} />
     </>
   );
 }
@@ -291,21 +321,21 @@ export function Dashboard({ d }) {
 const pct = (value) => value == null ? "—" : `${Math.round(value)}%`;
 const monthLabel = (value) => new Date(`${value}-01T00:00:00`).toLocaleDateString("en", { month: "short" });
 
-function DashboardCharts({ d, month }) {
+function DashboardCharts({ d, month, showFinance }) {
   const [courseMonth, setCourseMonth] = useState("2");
   const [groupMetric, setGroupMetric] = useState("combined");
   const years = [...new Set([
     ...(d.payments || []).map((payment) => payment.payment_date?.slice(0, 4)),
-    ...(d.periods || []).map((period) => period.period_month?.slice(0, 4)),
+    ...(showFinance ? (d.periods || []).map((period) => period.period_month?.slice(0, 4)) : []),
   ].filter(Boolean))].sort().reverse();
   const [yearChoice, setYearChoice] = useState("");
   const year = years.includes(yearChoice) ? yearChoice : years[0] || String(new Date().getFullYear());
   const teachers = topTeachersByRetention(d, courseMonth);
   const groups = topGroupsByPerformance(d, month, groupMetric);
-  const finance = yearlyFinanceSeries(d, year);
+  const finance = showFinance ? yearlyFinanceSeries(d, year) : null;
   const metricName = { combined: "Combined", attendance: "Attendance", homework: "Homework", assessment: "Assessment" }[groupMetric];
-  const salaryMax = Math.max(1, ...Object.values(finance.salary));
-  const financialMax = Math.max(salaryMax, ...Object.values(finance.income));
+  const salaryMax = finance ? Math.max(1, ...Object.values(finance.salary)) : 1;
+  const financialMax = finance ? Math.max(salaryMax, ...Object.values(finance.income)) : 1;
   return <div className="dashboard-chart-grid">
     <section className="panel chart-panel" aria-label="Top teachers by retention">
       <div className="chart-heading"><div><h2>Top 5 Teachers by Retention</h2><p className="hint">Weighted across the teacher’s groups at the selected course checkpoint.</p></div>
@@ -328,7 +358,7 @@ function DashboardCharts({ d, month }) {
       </div>) : <p className="hint">No recorded attendance, homework, or assessment results for this month yet.</p>}
     </section>
 
-    <section className="panel chart-panel annual-chart" aria-label="Yearly income and salaries">
+    {showFinance && <section className="panel chart-panel annual-chart" aria-label="Yearly income and salaries">
       <div className="chart-heading"><div><h2>Income and Salaries by Year</h2><p className="hint">Income uses dated cash payments. Salaries include approved payroll only.</p></div>
         <label>Year <select aria-label="Finance chart year" value={year} onChange={(event) => setYearChoice(event.target.value)}>{years.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
       </div>
@@ -340,8 +370,35 @@ function DashboardCharts({ d, month }) {
         </div>)}
       </div>
       {!finance.datedIncomeRows && <p className="hint">Income can’t be charted by month yet: existing cash payment records have no payment dates. New payments with dates will appear here.</p>}
-    </section>
+    </section>}
   </div>;
+}
+
+function AdminAccess({ onInvited }) {
+  const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  return <section className="panel admin-access">
+    <h2>Invite an academic admin</h2>
+    <p>They can manage students, groups, lessons, attendance, homework, and assessments. Payroll and finance stay private.</p>
+    <form onSubmit={async (event) => {
+      event.preventDefault(); setBusy(true); setError(""); setMessage("");
+      try {
+        const profile = await inviteAcademicAdmin({ email: email.trim(), fullName: fullName.trim() });
+        onInvited("profiles", profile);
+        setMessage(`Invitation sent to ${email.trim()}. They can set a password from the email.`);
+        setEmail(""); setFullName("");
+      } catch (e) { setError(e.message); }
+      finally { setBusy(false); }
+    }}>
+      <label>Full name <input required maxLength="120" value={fullName} onChange={(e) => setFullName(e.target.value)} /></label>
+      <label>Email <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+      <button disabled={busy} type="submit">{busy ? "Sending…" : "Send invitation"}</button>
+    </form>
+    {message && <p role="status">{message}</p>}{error && <p role="alert">{error}</p>}
+  </section>;
 }
 
 function RetentionChart({ d }) {
@@ -756,7 +813,6 @@ export function Payroll({ d }) {
   const period = periods.find((x) => x.id === choice) || periods[0];
   const rows = d.payroll.filter((x) => x.payroll_period_id === period?.id),
     total = payrollTotal(rows);
-  const approved = approvedPayroll[period?.period_month?.slice(0, 7)];
   return (
     <>
       <div className="formbar">
@@ -777,13 +833,6 @@ export function Payroll({ d }) {
         <strong>Total Salary: {fmt(total)}</strong>
         <span>Stored payroll amounts</span>
       </div>
-      {approved !== undefined && (
-        <p className={Math.round(total) === approved ? "verified" : "error"} role="status">
-          {Math.round(total) === approved
-            ? `Matches approved total: ${fmt(approved)}`
-            : `Stored total ${fmt(total)} differs from approved ${fmt(approved)}. No payroll amounts have been changed.`}
-        </p>
-      )}
       <div className="cards salarycards">
         {[
           ["fixed_amount", "Fixed"],
@@ -912,6 +961,7 @@ export function Finance({ d, refresh, onRecordSaved }) {
     const group = d.groups.find((g) => g.id === p.group_id);
     return (groupFilter === "All" || p.group_id === groupFilter) && (intakeFilter === "All" || group?.intake_id === intakeFilter);
   });
+  const undatedPaymentCount = cash.filter((p) => !p.payment_date).length;
   const orderedPayments = listedPayments.slice().sort((a, b) => {
     if (sortBy === "group") {
       const name = (id) => displayGroupName(d.groups.find((g) => g.id === id)?.name || "");
@@ -963,9 +1013,9 @@ export function Finance({ d, refresh, onRecordSaved }) {
   return (
     <>
       <div className="cards">
-        <Card n={shown.length} t="Cash payments" />
+        <Card n={listedPayments.length} t="Cash payments" />
         <Card
-          n={fmt(shown.reduce((sum, x) => sum + Number(x.amount || 0), 0))}
+          n={fmt(listedPayments.reduce((sum, x) => sum + Number(x.amount || 0), 0))}
           t="Collected"
         />
       </div>
@@ -1084,7 +1134,13 @@ export function Finance({ d, refresh, onRecordSaved }) {
             x.payment_note,
           ])}
       />
+      {listedPayments.length === 0 && (
+        <p role="status">
+          {month !== "All" && month !== "Undated" && undatedPaymentCount > 0
+            ? `No payments dated ${month} match these filters. ${undatedPaymentCount} historical payment${undatedPaymentCount === 1 ? " has" : "s have"} no payment date; choose Undated to view them.`
+            : "No payments match these filters."}
+        </p>
+      )}
     </>
   );
 }
-

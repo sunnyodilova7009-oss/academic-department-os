@@ -15,6 +15,7 @@ import {
   Dashboard,
   Finance,
   Payroll,
+  readAppData,
 } from "./components.jsx";
 import { Students, Groups } from "./legacy.jsx";
 import {
@@ -31,6 +32,7 @@ vi.mock("./client.js", () => ({
   readAll: vi.fn(),
   sb: {
     auth: { getSession: vi.fn(), onAuthStateChange: vi.fn(), signOut: vi.fn() },
+    functions: { invoke: vi.fn() },
     from: vi.fn(),
   },
 }));
@@ -136,6 +138,7 @@ const fixture = () => ({
   ],
   intakes: [],
   teachers: [],
+  profiles: [{ id: "user", full_name: "Owner", role: "owner_admin", active: true }],
 });
 beforeEach(() => {
   sb.auth.getSession.mockResolvedValue({
@@ -175,6 +178,38 @@ describe("navigation and groups", () => {
       "permission denied",
     );
     expect(screen.queryByText("Active Students")).toBeNull();
+  });
+  it("hides payroll and finance for an academic-only admin", async () => {
+    readAll.mockImplementation(async (table) => {
+      const data = fixture();
+      if (table === "profiles") return [{ id: "user", role: "academic_admin", active: true }];
+      return data[table] || [];
+    });
+    render(<App Students={Students} Groups={Groups} />);
+    await screen.findByText("Active Students");
+    expect(screen.queryByRole("button", { name: "Payroll", exact: true })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Finance", exact: true })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Admin Access", exact: true })).toBeNull();
+    expect(screen.queryByLabelText("Yearly income and salaries")).toBeNull();
+    const requested = readAll.mock.calls.map(([table]) => table);
+    expect(requested).not.toContain(tables.periods);
+    expect(requested).not.toContain(tables.payroll);
+    expect(requested).not.toContain(tables.payments);
+  });
+  it("retries transient future-issued JWT errors and reloads all tables", async () => {
+    let failOnce = true;
+    const read = vi.fn(async (table) => {
+      if (table === "homework" && failOnce) {
+        failOnce = false;
+        throw new Error("homework: JWT issued at future");
+      }
+      return fixture()[table];
+    });
+    const pause = vi.fn().mockResolvedValue(undefined);
+    const loaded = await readAppData(read, pause);
+    expect(loaded.homework).toEqual(fixture().homework);
+    expect(pause).toHaveBeenCalledOnce();
+    expect(read).toHaveBeenCalledTimes(Object.keys(tables).length * 2);
   });
   it("keeps the requested columns and opens groups from their names", () => {
     render(<Groups d={fixture()} />);
@@ -367,6 +402,19 @@ describe("monthly counts and finance", () => {
     );
     expect(screen.queryByText("200")).toBeNull();
   });
+  it("updates payment summary cards when group filters change", async () => {
+    render(<Finance d={fixture()} />);
+    await userEvent.setup().selectOptions(
+      screen.getByRole("combobox", { name: "Filter payments by group" }),
+      "g1",
+    );
+    expect(screen.getByText("Cash payments").previousSibling.textContent).toBe(
+      "1",
+    );
+    expect(screen.getByText("Collected").previousSibling.textContent).toBe(
+      "100",
+    );
+  });
   it("saves a real-shaped payment once and displays it in its month without reloading", async () => {
     const insert = vi.fn((payload) => ({
       select: () => ({
@@ -429,15 +477,16 @@ describe("monthly counts and finance", () => {
       ).toThrow();
     expect(validDate("2026-02-28")).toBe(true);
   });
-  it("matches the reconciled September total and preserves the August total", () => {
+  it("shows payroll details without the approved-total warning", () => {
     const d = fixture(),
       before = JSON.stringify(d.payroll);
     render(<Payroll d={d} />);
-    expect(screen.getByText("Matches approved total: 11,467,346")).toBeTruthy();
+    expect(screen.queryByText(/differs from approved/)).toBeNull();
+    expect(screen.getByText("Component sum: 11,467,345.68")).toBeTruthy();
     fireEvent.change(screen.getByRole("combobox", { name: "Period" }), {
       target: { value: "p1" },
     });
-    expect(screen.getByText("Matches approved total: 8,432,332")).toBeTruthy();
+    expect(screen.queryByText(/differs from approved/)).toBeNull();
     expect(screen.getByText("Component sum: 8,432,332")).toBeTruthy();
     expect(JSON.stringify(d.payroll)).toBe(before);
     expect(
@@ -445,4 +494,3 @@ describe("monthly counts and finance", () => {
     ).toBe(8432332);
   });
 });
-
