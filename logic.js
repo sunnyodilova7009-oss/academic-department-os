@@ -1,3 +1,11 @@
+export const retentionLabel = (metric, previousCount) => {
+  if (metric?.baseline_from_previous > 0 && metric.retained_from_previous != null) {
+    return Math.round(metric.retained_from_previous / metric.baseline_from_previous * 100) + "%";
+  }
+  // A sourced roster without a matched prior cohort cannot establish retention.
+  if (metric?.source_spreadsheet || !(previousCount > 0) || metric?.student_count == null || metric.student_count > previousCount) return "—";
+  return Math.round(metric.student_count / previousCount * 100) + "%";
+};
 export const dateOfLesson = (lesson) => lesson.lesson_date || lesson.date || "";
 export const monthsOf = (dates) =>
   [...new Set(dates.filter(Boolean).map((x) => x.slice(0, 7)))]
