@@ -179,7 +179,7 @@ describe("navigation and groups", () => {
     );
     expect(screen.queryByText("Active Students")).toBeNull();
   });
-  it("hides payroll and finance for an academic-only admin", async () => {
+  it("shows payroll and finance as read-only for an academic admin", async () => {
     readAll.mockImplementation(async (table) => {
       const data = fixture();
       if (table === "profiles") return [{ id: "user", role: "academic_admin", active: true }];
@@ -187,14 +187,17 @@ describe("navigation and groups", () => {
     });
     render(<App Students={Students} Groups={Groups} />);
     await screen.findByText("Active Students");
-    expect(screen.queryByRole("button", { name: "Payroll", exact: true })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Finance", exact: true })).toBeNull();
+    expect(screen.getByRole("button", { name: "Payroll", exact: true })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Finance", exact: true })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Admin Access", exact: true })).toBeNull();
-    expect(screen.queryByLabelText("Yearly income and salaries")).toBeNull();
+    expect(screen.getByLabelText("Yearly income and salaries")).toBeTruthy();
     const requested = readAll.mock.calls.map(([table]) => table);
-    expect(requested).not.toContain(tables.periods);
-    expect(requested).not.toContain(tables.payroll);
-    expect(requested).not.toContain(tables.payments);
+    expect(requested).toContain(tables.periods);
+    expect(requested).toContain(tables.payroll);
+    expect(requested).toContain(tables.payments);
+    fireEvent.click(screen.getByRole("button", { name: "Finance", exact: true }));
+    expect(await screen.findByText("View only")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "+ Add Payment" })).toBeNull();
   });
   it("retries transient future-issued JWT errors and reloads all tables", async () => {
     let failOnce = true;
@@ -402,6 +405,11 @@ describe("monthly counts and finance", () => {
     );
     expect(screen.queryByText("200")).toBeNull();
   });
+  it("does not offer payment entry in read-only finance mode", () => {
+    render(<Finance d={fixture()} readOnly />);
+    expect(screen.getByText("View only")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "+ Add Payment" })).toBeNull();
+  });
   it("updates payment summary cards when group filters change", async () => {
     render(<Finance d={fixture()} />);
     await userEvent.setup().selectOptions(
@@ -494,3 +502,4 @@ describe("monthly counts and finance", () => {
     ).toBe(8432332);
   });
 });
+
