@@ -15,11 +15,18 @@ export function validDate(value) {
   );
 }
 export function nextLessonNumber(lessons, groupId) {
-  return (
-    lessons
-      .filter((x) => x.group_id === groupId)
-      .reduce((max, x) => Math.max(max, Number(x.lesson_number) || 0), 0) + 1
-  );
+  return (courseLessons(lessons, groupId).at(-1)?.lesson_number || 0) + 1;
+}
+// Historical imports can restart their source numbers each month. Keep the
+// stored IDs and numbers intact while presenting one course-wide sequence.
+export function courseLessons(lessons, groupId) {
+  let previous = 0;
+  return lessons.filter(x => x.group_id === groupId).slice().sort((a, b) =>
+    dateOfLesson(a).localeCompare(dateOfLesson(b)) || Number(a.lesson_number || 0) - Number(b.lesson_number || 0) || String(a.id).localeCompare(String(b.id))
+  ).map(lesson => {
+    previous = Math.max(previous + 1, Number(lesson.lesson_number) || 0);
+    return { ...lesson, lesson_number: previous };
+  });
 }
 export function dashboardCounts(d, month) {
   if (!month) return { active: 0, left: 0, groups: 0, lessons: 0 };
@@ -29,6 +36,9 @@ export function dashboardCounts(d, month) {
   const active = d.students.filter((s) => {
     const joined = (s.joined_at || "").slice(0, 10);
     const left = (s.left_at || "").slice(0, 10);
+    // When an imported inactive record has no exit date, its historical
+    // enrollment is unknown. Do not silently count it as currently active.
+    if (!left && ['left','paused','graduated'].includes(s.status)) return false;
     return (
       (!joined || joined.slice(0, 7) <= month) &&
       (!left || left.slice(0, 7) >= month)
