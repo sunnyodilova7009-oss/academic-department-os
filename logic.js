@@ -31,6 +31,8 @@ export function courseLessons(lessons, groupId) {
 export function dashboardCounts(d, month) {
   if (!month) return { active: 0, left: 0, groups: 0, lessons: 0 };
   const lessons = d.lessons.filter((x) => dateOfLesson(x).startsWith(month));
+  const roster=(d.rosters||[]).filter(r=>r.period_month.startsWith(month));
+  if(roster.length){const active=new Set(roster.filter(r=>r.status==='active').map(r=>r.student_id)),left=new Set(roster.filter(r=>r.status==='left').map(r=>r.student_id));return {active:active.size,left:[...left].filter(id=>!active.has(id)).length,groups:new Set(roster.filter(r=>r.status==='active').map(r=>r.group_id)).size,lessons:lessons.length};}
   // Count participation during the month, including students who left later in it.
   // Current status alone cannot reconstruct a historical month.
   const active = d.students.filter((s) => {

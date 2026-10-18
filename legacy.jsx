@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
 import { sb } from "./client.js";
 import { AcademicSheet, Table } from "./components.jsx";
@@ -6,6 +6,7 @@ import { localDate, nextLessonNumber, validDate, courseLessons } from "./logic.j
 import { GroupEditor, LessonEditor } from './admin-editors.jsx';
 
 export function Students({ d }) {
+  const [saving,setSaving]=useState(false);const pendingSave=useRef(false);
   const [name, setName] = useState(""),
     [phone, setPhone] = useState(""),
     [gid, setGid] = useState(""),
@@ -16,37 +17,21 @@ export function Students({ d }) {
     [reason, setReason] = useState(""),
     [newGroup, setNewGroup] = useState("");
   async function add() {
+    if(pendingSave.current)return;
     if (!name || !gid || !joined)
       return alert("Complete Name, Group and Joined Date.");
-    let r = await sb
-      .from("students")
-      .insert({
-        full_name: name,
-        phone: phone || null,
-        joined_at: joined,
-        status: "active",
-      })
-      .select()
-      .single();
-    if (r.error) return alert(r.error.message);
-    let m = await sb.from("group_students").insert({
-      student_id: r.data.id,
-      group_id: gid,
-      joined_at: joined,
-      active: true,
-    });
-    if (m.error) return alert(m.error.message);
-    location.reload();
+    pendingSave.current=true;setSaving(true);
+    try{const r=await sb.rpc('admin_create_student',{p_name:name,p_phone:phone||null,p_group_id:gid,p_joined_at:joined});if(r.error)throw r.error;location.reload();}catch(e){alert(e.message);}finally{pendingSave.current=false;setSaving(false);}
   }
   async function saveStatus() {
     let s = editing;
     if (!s) return;
     if (st === "active") {
       if (!newGroup) return alert("Choose a group for the active student.");
-      let r = await sb.rpc("activate_student_in_group", {
+      let r = await sb.rpc("admin_change_student_status", {
         p_student_id: s.id,
         p_group_id: newGroup,
-        p_joined_at: new Date().toISOString().slice(0, 10),
+        p_status:'active',p_reason:null,
       });
       if (r.error) return alert(r.error.message);
     } else {
@@ -55,7 +40,7 @@ export function Students({ d }) {
         !reason.trim()
       )
         return alert("Enter a reason.");
-      let r = await sb.rpc("change_student_status", {
+      let r = await sb.rpc("admin_change_student_status", {
         p_student_id: s.id,
         p_status: st,
         p_reason: reason,
@@ -79,15 +64,17 @@ export function Students({ d }) {
       <div className="formbar">
         <input
           placeholder="Student name"
+          aria-label="Student name"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
         <input
           placeholder="Phone"
+          aria-label="Phone"
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
         />
-        <select value={gid} onChange={(e) => setGid(e.target.value)}>
+        <select aria-label="Student group" value={gid} onChange={(e) => setGid(e.target.value)}>
           <option value="">Choose group</option>
           {d.groups.map((g) => (
             <option value={g.id}>{g.name}</option>
@@ -95,10 +82,11 @@ export function Students({ d }) {
         </select>
         <input
           type="date"
+          aria-label="Joined date"
           value={joined}
           onChange={(e) => setJoined(e.target.value)}
         />
-        <button onClick={add}>+ Add Student</button>
+        <button disabled={saving} onClick={add}>{saving?'Saving…':'+ Add Student'}</button>
       </div>
       {editing && (
         <div className="panel editor">
@@ -285,6 +273,8 @@ export function Groups({ d, onRecordSaved }) {
               Number(b) && cc != null
                 ? Math.round((cc / Number(b)) * 100) + "%"
                 : "—";
+          const retention=n=>{const metric=d.metrics?.find(x=>x.group_id===g.id&&Number(x.course_month)===n);return metric?.baseline_from_previous>0&&metric.retained_from_previous!=null?Math.round(metric.retained_from_previous/metric.baseline_from_previous*100)+'%':null;};
+          r12=retention(2)||r12;r23=retention(3)||r23;
           return [
             g.name,
             <button className="editcell" onClick={() => intake(g)}>
