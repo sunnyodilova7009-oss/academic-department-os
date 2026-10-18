@@ -529,7 +529,7 @@ export function AcademicSheet({ g, d, back, addLesson, onRecordSaved }) {
             {visible.map((x) => (
               <option key={x.id} value={x.id}>
                 L{x.lesson_number} · {dateOfLesson(x)} ·{" "}
-                {x.payroll_payable ? "Payable" : "Review"}
+                {x.is_review ? "Review · LIVE only" : x.payroll_payable ? "Payable" : "Unpaid"}
               </option>
             ))}
           </select>
@@ -758,6 +758,7 @@ export function Payroll({ d }) {
               ))}
               <p>Component sum: {fmt(payrollPartsTotal(x))}</p>
               <p>Stored total: {fmt(x.total_amount)}</p>
+              {x.payroll_note && <p>Note: {x.payroll_note}</p>}
               {Math.abs(payrollPartsTotal(x) - Number(x.total_amount || 0)) >
                 0.5 && (
                 <p className="error">
