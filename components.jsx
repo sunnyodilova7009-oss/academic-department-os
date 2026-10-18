@@ -248,11 +248,13 @@ export function Dashboard({ d }) {
     ...d.lessons.map(dateOfLesson),
     ...d.students.flatMap((s) => [s.joined_at, s.left_at]),
     ...d.periods.map((p) => p.period_month),
+    ...(d.rosters||[]).map(r=>r.period_month),
   ]);
   const [choice, setChoice] = useState("");
   const month = months.includes(choice) ? choice : months[0] || "";
   const counts = dashboardCounts(d, month);
-  const incompleteHistory = d.students.some(s => !s.joined_at || (['left','paused','graduated'].includes(s.status) && !s.left_at));
+  const hasMonthlyRoster=(d.rosters||[]).some(r=>r.period_month.startsWith(month));
+  const incompleteHistory = !hasMonthlyRoster&&d.students.some(s => !s.joined_at || (['left','paused','graduated'].includes(s.status) && !s.left_at));
   return (
     <>
       {incompleteHistory && <p role="status" className="hint">Historical student counts are estimates: imported join or leave dates are missing. Groups and lessons use recorded lesson dates.</p>}
@@ -272,12 +274,7 @@ export function Dashboard({ d }) {
         <Card n={counts.groups} t="Groups" />
         <Card n={counts.lessons} t="Lessons" />
       </div>
-      <p className="hint">
-        Active Students counts students enrolled at any point in the selected
-        month, including those who left during it. Groups counts groups with
-        lessons that month. Historical frozen or transferred status requires
-        status history.
-      </p>
+      <p className="hint">{hasMonthlyRoster?'Student and group counts use the selected month’s roster. Lessons use recorded calendar dates.':'Historical counts use available join/leave dates. Groups count groups with lessons that month; missing dates make student counts estimates.'}</p>
     </>
   );
 }
@@ -454,6 +451,7 @@ export function AcademicSheet({ g, d, back, addLesson, onRecordSaved }) {
   const months = monthsOf([
     ...lessons.map(dateOfLesson),
     ...exams.map((x) => x.exam_date),
+    ...(d.rosters||[]).filter(r=>r.group_id===g.id).map(r=>r.period_month),
   ]);
   const month = months.includes(monthChoice) ? monthChoice : months[0] || "";
   const visible = lessons.filter((x) => dateOfLesson(x).startsWith(month));
@@ -462,9 +460,8 @@ export function AcademicSheet({ g, d, back, addLesson, onRecordSaved }) {
     .filter((x) => (x.exam_date || "").startsWith(month))
     .sort((a, b) => (a.exam_date || "").localeCompare(b.exam_date || ""));
   const exam = monthExams.find((x) => x.id === examChoice) || monthExams.at(-1);
-  const studentIds = new Set(
-    d.members.filter((x) => x.group_id === g.id).map((x) => x.student_id),
-  );
+  const monthRoster=(d.rosters||[]).filter(r=>r.group_id===g.id&&r.period_month.startsWith(month));
+  const studentIds = new Set(monthRoster.length?monthRoster.map(r=>r.student_id):d.members.filter((x) => x.group_id === g.id).map((x) => x.student_id));
   const students = d.students
     .filter((s) => studentIds.has(s.id))
     .sort((a, b) => a.full_name.localeCompare(b.full_name));
