@@ -120,7 +120,7 @@ export const payrollPartsTotal = (row) =>
     "retention_bonus",
     "adjustments",
   ].reduce((sum, field) => sum + Number(row[field] || 0), 0) - Number(row.cover_transfer || 0);
-export const approvedPayroll = { "2026-08": 8432332, "2026-09": 6442833 };
+export const approvedPayroll = { "2026-08": 8432332, "2026-09": 11467346 };
 export function displayGroupName(name = "") {
   return String(name).replace(/\b(pre[- ]inter(?:mediate)?|upper[- ]?inter(?:mediate)?|inter(?:mediate)?|elementary|beginner)\b/ig, (match) => {
     const key = match.toLowerCase().replace(/\s/g, "");

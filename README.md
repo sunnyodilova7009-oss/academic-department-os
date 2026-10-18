@@ -16,8 +16,8 @@ Tests mock Supabase and never create real students, lessons, scores, or payments
 
 ## Data and deployment
 
-- No schema migrations, policy changes, payroll recalculation, or data imports are included.
-- Payroll totals come from stored `group_payroll.total_amount`; approved August 2026 (8,432,332) and September 2026 (6,442,833) totals are compared, never overwritten.
+- No schema migrations, policy changes, or academic data imports are included. September 2026 payroll rows were reconciled in the live database against the September salary workbook.
+- Payroll totals come from stored `group_payroll.total_amount`; August 2026 remains 8,432,332 and September 2026 is 11,467,345.68 (displayed rounded to 11,467,346). The approved total comparison allows sub-som rounding.
 - Dashboard defines active students as enrolled at any point in a month. Historical frozen/transfer status cannot be reconstructed without status-history data.
 - All data reads are paginated; read errors appear explicitly instead of silently displaying zero counts.
 - LIVE/HW records use lesson/student keys. Scores use assessment/student keys; assessments are selected within their calendar month. Blank LIVE/HW means unrecorded and cannot be used to silently write absence/missing.
@@ -38,5 +38,5 @@ Use this checklist once a verified release is deployed. Do not save fake product
 6. Academic Sheet: switch months and lessons; check LIVE/HW against known lesson records and assessment scores against the selected assessment.
 7. Add Lesson/Assessment: check the next continuous lesson number and assessment form; cancel without saving fake data. Verify live write permissions separately with approved real operations.
 8. Support: confirm it says “On progress”.
-9. Payroll: switch August/September, open How for several groups, and confirm totals remain 8,432,332 / 6,442,833.
+9. Payroll: switch August/September, open How for several groups, and confirm totals are 8,432,332 / 11,467,346.
 10. Finance: switch payment months and compare rows/count/collected total; check Group → Student → Date → Amount → Course Month → Note. Save only a real authorized payment and confirm it appears once in the correct month.

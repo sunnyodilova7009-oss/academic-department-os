@@ -718,8 +718,8 @@ export function Payroll({ d }) {
         <span>Stored payroll amounts</span>
       </div>
       {approved !== undefined && (
-        <p className={total === approved ? "verified" : "error"} role="status">
-          {total === approved
+        <p className={Math.round(total) === approved ? "verified" : "error"} role="status">
+          {Math.round(total) === approved
             ? `Matches approved total: ${fmt(approved)}`
             : `Stored total ${fmt(total)} differs from approved ${fmt(approved)}. No payroll amounts have been changed.`}
         </p>
