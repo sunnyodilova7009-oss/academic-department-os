@@ -41,6 +41,21 @@ export function dashboardCounts(d, month) {
   const lessons = d.lessons.filter((x) => dateOfLesson(x).startsWith(month));
   const roster=(d.rosters||[]).filter(r=>r.period_month.startsWith(month));
   if(roster.length){const active=new Set(roster.filter(r=>r.status==='active').map(r=>r.student_id)),left=new Set(roster.filter(r=>r.status==='left').map(r=>r.student_id));return {active:active.size,left:[...left].filter(id=>!active.has(id)).length,groups:new Set(roster.filter(r=>r.status==='active').map(r=>r.group_id)).size,lessons:lessons.length};}
+  const history = (d.rosterHistory || []).filter((r) =>
+    String(r.source_type || r.source_month || "").startsWith(month),
+  );
+  if (history.length) {
+    const inactive = (status) => /left|stopped|inactive|graduated|transferred/i.test(status || "");
+    const activeRows = history.filter((r) => !inactive(r.source_status));
+    const active = new Set(activeRows.map((r) => r.student_id).filter(Boolean));
+    const left = new Set(history.filter((r) => inactive(r.source_status)).map((r) => r.student_id).filter(Boolean));
+    return {
+      active: active.size,
+      left: [...left].filter((id) => !active.has(id)).length,
+      groups: new Set(activeRows.map((r) => r.group_id).filter(Boolean)).size,
+      lessons: lessons.length,
+    };
+  }
   // Count participation during the month, including students who left later in it.
   // Current status alone cannot reconstruct a historical month.
   const active = d.students.filter((s) => {
@@ -106,3 +121,9 @@ export const payrollPartsTotal = (row) =>
     "adjustments",
   ].reduce((sum, field) => sum + Number(row[field] || 0), 0) - Number(row.cover_transfer || 0);
 export const approvedPayroll = { "2026-08": 8432332, "2026-09": 6442833 };
+export function displayGroupName(name = "") {
+  return String(name).replace(/\b(pre[- ]inter(?:mediate)?|upper[- ]?inter(?:mediate)?|inter(?:mediate)?|elementary|beginner)\b/ig, (match) => {
+    const key = match.toLowerCase().replace(/\s/g, "");
+    return key.startsWith("pre") ? "Pre-intermediate" : key.startsWith("upper") ? "Upper-intermediate" : key.startsWith("inter") ? "Intermediate" : key[0].toUpperCase() + key.slice(1);
+  });
+}

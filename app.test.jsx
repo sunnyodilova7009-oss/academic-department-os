@@ -176,7 +176,7 @@ describe("navigation and groups", () => {
     );
     expect(screen.queryByText("Active Students")).toBeNull();
   });
-  it("keeps the requested columns and opens different groups", () => {
+  it("keeps the requested columns and opens groups from their names", () => {
     render(<Groups d={fixture()} />);
     expect(
       screen.getAllByRole("columnheader").map((x) => x.textContent),
@@ -189,16 +189,15 @@ describe("navigation and groups", () => {
       "Retention 1",
       "M3",
       "Retention 2",
-      "Actions",
     ]);
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Open", exact: true })[0],
+      screen.getByRole("button", { name: "Group A", exact: true }),
     );
     expect(screen.getByText("Group A — Academic Sheet")).toBeTruthy();
     expect(screen.getAllByText("Ali")).toHaveLength(2); // Lesson and assessment tables, no duplicate memberships.
     fireEvent.click(screen.getByRole("button", { name: "← Groups" }));
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Open", exact: true })[1],
+      screen.getByRole("button", { name: "Group B", exact: true }),
     );
     expect(screen.getByText("Group B — Academic Sheet")).toBeTruthy();
     expect(screen.getByText("No lessons in this month.")).toBeTruthy();

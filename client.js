@@ -22,6 +22,7 @@ export const tables = {
   scores: "exam_scores",
   teachers: "teachers",
   rosters: "group_student_months",
+  rosterHistory: "student_roster_history",
 };
 
 export async function readAll(table) {

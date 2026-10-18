@@ -3,6 +3,7 @@ import { sb, tables, readAll } from "./client.js";
 import {
   approvedPayroll,
   dashboardCounts,
+  displayGroupName,
   dateOfLesson,
   courseLessons,
   localDate,
@@ -11,6 +12,7 @@ import {
   paymentRows,
   payrollPartsTotal,
   payrollTotal,
+  retentionLabel,
   validDate,
 } from "./logic.js";
 
@@ -125,7 +127,7 @@ export function App({ Students, Groups }) {
     return () => {
       alive = false;
     };
-  }, [userId, revision, page]);
+  }, [userId, revision]);
   const refresh = () => setRevision((value) => value + 1);
   function recordSaved(table, row) {
     const matches = (x) =>
@@ -223,7 +225,7 @@ export function App({ Students, Groups }) {
             {page === "Dashboard" ? (
               <Dashboard d={data} />
             ) : page === "Students" ? (
-              <Students d={data} />
+              <Students d={data} refresh={refresh} onRecordSaved={recordSaved} />
             ) : page === "Groups" ? (
               <Groups d={data} onRecordSaved={recordSaved} />
             ) : page === "Support" ? (
@@ -249,15 +251,17 @@ export function Dashboard({ d }) {
     ...d.students.flatMap((s) => [s.joined_at, s.left_at]),
     ...d.periods.map((p) => p.period_month),
     ...(d.rosters||[]).map(r=>r.period_month),
+    ...(d.rosterHistory||[]).map(r=>r.source_type || r.source_month),
   ]);
   const [choice, setChoice] = useState("");
   const month = months.includes(choice) ? choice : months[0] || "";
   const counts = dashboardCounts(d, month);
   const hasMonthlyRoster=(d.rosters||[]).some(r=>r.period_month.startsWith(month));
+  const hasHistoricalRoster=(d.rosterHistory||[]).some(r=>String(r.source_type||r.source_month||"").startsWith(month));
   const incompleteHistory = !hasMonthlyRoster&&d.students.some(s => !s.joined_at || (['left','paused','graduated'].includes(s.status) && !s.left_at));
   return (
     <>
-      {incompleteHistory && <p role="status" className="hint">Historical student counts are estimates: imported join or leave dates are missing. Groups and lessons use recorded lesson dates.</p>}
+      {incompleteHistory && !hasHistoricalRoster && <p role="status" className="hint">Historical student counts are estimates: imported join or leave dates are missing. Groups and lessons use recorded lesson dates.</p>}
       <div className="formbar">
         <label>
           Month{" "}
@@ -274,9 +278,29 @@ export function Dashboard({ d }) {
         <Card n={counts.groups} t="Groups" />
         <Card n={counts.lessons} t="Lessons" />
       </div>
-      <p className="hint">{hasMonthlyRoster?'Student and group counts use the selected month’s roster. Lessons use recorded calendar dates.':'Historical counts use available join/leave dates. Groups count groups with lessons that month; missing dates make student counts estimates.'}</p>
+      <p className="hint">{hasMonthlyRoster?'Student and group counts use the selected month’s roster. Lessons use recorded calendar dates.':hasHistoricalRoster?'Student and group counts use the imported historical roster. Left status is counted only when marked in the source roster. Lessons use recorded calendar dates.':'Historical counts use available join/leave dates. Groups count groups with lessons that month; missing dates make student counts estimates.'}</p>
+      <RetentionChart d={d} />
     </>
   );
+}
+
+function RetentionChart({ d }) {
+  const groups = (d.groups || []).map((g) => {
+    const get = (month) => d.metrics?.find((m) => m.group_id === g.id && Number(m.course_month) === month);
+    const m1 = get(1), m2 = get(2), m3 = get(3);
+    const base1 = m1?.student_count ?? g.starting_enrollment;
+    const a = retentionLabel(m2, base1), b = retentionLabel(m3, m2?.student_count);
+    const values = [a, b].filter((x) => x !== "—").map((x) => Number.parseInt(x, 10));
+    return { name: displayGroupName(g.name), active: g.active !== false, value: values.length ? Math.min(...values) : null };
+  }).filter((g) => g.active && g.value != null).sort((a, b) => a.value - b.value).slice(0, 8);
+  if (!groups.length) return <p className="hint">Retention chart appears when groups have comparable month-to-month roster data.</p>;
+  return <section className="panel retention-chart" aria-label="Lowest group retention">
+    <h2>Retention to review</h2>
+    <p className="hint">Lowest recorded retention percentage per group. Red bars are below 50%.</p>
+    {groups.map((g) => <div className="retention-row" key={g.name}>
+      <span>{g.name}</span><div className="retention-track"><div className={g.value < 50 ? "retention-fill low" : "retention-fill"} style={{ width: `${Math.min(100, g.value)}%` }} role="progressbar" aria-label={`${g.name} retention`} aria-valuenow={g.value} aria-valuemin="0" aria-valuemax="100" /></div><b className={g.value < 50 ? "retention-low" : ""}>{g.value}%</b>
+    </div>)}
+  </section>;
 }
 
 function AcademicCell({ record, lessonId, studentId, type, label, onSaved }) {
@@ -503,7 +527,7 @@ export function AcademicSheet({ g, d, back, addLesson, onRecordSaved }) {
     <>
       <div className="formbar">
         <button onClick={back}>← Groups</button>
-        <h3>{g.name} — Academic Sheet</h3>
+        <h3>{displayGroupName(g.name)} — Academic Sheet</h3>
         <label>
           Month{" "}
           <select
@@ -731,7 +755,7 @@ export function Payroll({ d }) {
         ]}
         rows={rows.map((x) => [
           d.teachers.find((t) => t.id === x.teacher_id)?.name || "—",
-          d.groups.find((g) => g.id === x.group_id)?.name || "—",
+          displayGroupName(d.groups.find((g) => g.id === x.group_id)?.name || "—"),
           x.active_students,
           x.completed_lessons,
           fmt(x.fixed_amount),
@@ -805,13 +829,40 @@ export function Finance({ d, refresh, onRecordSaved }) {
   const cash = paymentRows(payments, "All"),
     shown = paymentRows(payments, month);
   const months = [
-    ...monthsOf(cash.map((x) => x.payment_date)),
+    ...monthsOf([
+      ...Array.from({ length: 12 }, (_, i) => {
+        const date = new Date();
+        date.setDate(1);
+        date.setMonth(date.getMonth() - i);
+        return date.toISOString().slice(0, 7);
+      }),
+      ...cash.map((x) => x.payment_date),
+    ]),
     ...(cash.some((x) => !x.payment_date) ? ["Undated"] : []),
   ];
+  const [groupFilter, setGroupFilter] = useState("All");
+  const [intakeFilter, setIntakeFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("date");
+  const activeStudentIds = new Set(d.students.filter((s) => s.status === "active").map((s) => s.id));
   const ids = new Set(
-    d.members.filter((x) => x.group_id === gid).map((x) => x.student_id),
+    d.members.filter((x) => x.group_id === gid && x.active !== false).map((x) => x.student_id),
   );
-  const students = d.students.filter((s) => ids.has(s.id));
+  const students = d.students.filter((s) => ids.has(s.id) && activeStudentIds.has(s.id)).sort((a, b) => a.full_name.localeCompare(b.full_name));
+  const listedPayments = shown.filter((p) => {
+    const group = d.groups.find((g) => g.id === p.group_id);
+    return (groupFilter === "All" || p.group_id === groupFilter) && (intakeFilter === "All" || group?.intake_id === intakeFilter);
+  });
+  const orderedPayments = listedPayments.slice().sort((a, b) => {
+    if (sortBy === "group") {
+      const name = (id) => displayGroupName(d.groups.find((g) => g.id === id)?.name || "");
+      return name(a.group_id).localeCompare(name(b.group_id)) || (b.payment_date || "").localeCompare(a.payment_date || "");
+    }
+    if (sortBy === "intake") {
+      const name = (id) => d.intakes.find((i) => i.id === d.groups.find((g) => g.id === id)?.intake_id)?.name || "";
+      return name(a.group_id).localeCompare(name(b.group_id)) || (b.payment_date || "").localeCompare(a.payment_date || "");
+    }
+    return (b.payment_date || "").localeCompare(a.payment_date || "");
+  });
   async function save(e) {
     e.preventDefault();
     if (pending.current) return;
@@ -869,6 +920,9 @@ export function Finance({ d, refresh, onRecordSaved }) {
             ))}
           </select>
         </label>
+        <label>Group <select aria-label="Filter payments by group" value={groupFilter} onChange={e=>setGroupFilter(e.target.value)}><option value="All">All groups</option>{d.groups.map(g=><option key={g.id} value={g.id}>{displayGroupName(g.name)}</option>)}</select></label>
+        <label>Intake <select aria-label="Filter payments by intake" value={intakeFilter} onChange={e=>setIntakeFilter(e.target.value)}><option value="All">All intakes</option>{d.intakes.map(i=><option key={i.id} value={i.id}>{i.name}</option>)}</select></label>
+        <label>Sort by <select aria-label="Sort payments by" value={sortBy} onChange={e=>setSortBy(e.target.value)}><option value="date">Date</option><option value="group">Group</option><option value="intake">Intake</option></select></label>
         <button onClick={() => setShow((v) => !v)}>+ Add Payment</button>
         {refresh && (
           <button disabled={busy} onClick={refresh}>
@@ -895,9 +949,9 @@ export function Finance({ d, refresh, onRecordSaved }) {
               }}
             >
               <option value="">Choose group</option>
-              {d.groups.map((g) => (
+              {d.groups.filter(g=>g.active!==false).map((g) => (
                 <option key={g.id} value={g.id}>
-                  {g.name}
+                  {displayGroupName(g.name)}
                 </option>
               ))}
             </select>
@@ -960,14 +1014,10 @@ export function Finance({ d, refresh, onRecordSaved }) {
       )}
       <Table
         heads={["Student", "Group", "Date", "Course Month", "Amount", "Note"]}
-        rows={shown
-          .slice()
-          .sort((a, b) =>
-            (b.payment_date || "").localeCompare(a.payment_date || ""),
-          )
+        rows={orderedPayments
           .map((x) => [
             d.students.find((s) => s.id === x.student_id)?.full_name || "—",
-            d.groups.find((g) => g.id === x.group_id)?.name || "—",
+            displayGroupName(d.groups.find((g) => g.id === x.group_id)?.name || "—"),
             x.payment_date,
             x.course_month,
             fmt(x.amount),

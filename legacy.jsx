@@ -2,10 +2,10 @@ import React, { useState, useRef } from "react";
 
 import { sb } from "./client.js";
 import { AcademicSheet, Table } from "./components.jsx";
-import { localDate, nextLessonNumber, validDate, courseLessons, retentionLabel } from "./logic.js";
+import { localDate, nextLessonNumber, validDate, courseLessons, retentionLabel, displayGroupName } from "./logic.js";
 import { GroupEditor, LessonEditor } from './admin-editors.jsx';
 
-export function Students({ d }) {
+export function Students({ d, refresh, onRecordSaved }) {
   const [saving,setSaving]=useState(false);const pendingSave=useRef(false);
   const [name, setName] = useState(""),
     [phone, setPhone] = useState(""),
@@ -21,7 +21,22 @@ export function Students({ d }) {
     if (!name || !gid || !joined)
       return alert("Complete Name, Group and Joined Date.");
     pendingSave.current=true;setSaving(true);
-    try{const r=await sb.rpc('admin_create_student',{p_name:name,p_phone:phone||null,p_group_id:gid,p_joined_at:joined});if(r.error)throw r.error;location.reload();}catch(e){alert(e.message);}finally{pendingSave.current=false;setSaving(false);}
+    try{
+      const r=await sb.rpc('admin_create_student',{p_name:name,p_phone:phone||null,p_group_id:gid,p_joined_at:joined});
+      if(r.error)throw r.error;
+      const studentId=typeof r.data==='string'?r.data:r.data?.id;
+      if(studentId){
+        const [student,membership]=await Promise.all([
+          sb.from('students').select('*').eq('id',studentId).single(),
+          sb.from('group_students').select('*').eq('student_id',studentId).eq('group_id',gid).single(),
+        ]);
+        if(student.error)throw student.error;
+        if(membership.error)throw membership.error;
+        onRecordSaved?.('students',student.data);
+        onRecordSaved?.('members',membership.data);
+      }else refresh?.();
+      setName("");setPhone("");setJoined("");
+    }catch(e){alert(e.message);}finally{pendingSave.current=false;setSaving(false);}
   }
   async function saveStatus() {
     let s = editing;
@@ -47,7 +62,7 @@ export function Students({ d }) {
       });
       if (r.error) return alert(r.error.message);
     }
-    location.reload();
+    refresh?.();
   }
   return (
     <>
@@ -77,7 +92,7 @@ export function Students({ d }) {
         <select aria-label="Student group" value={gid} onChange={(e) => setGid(e.target.value)}>
           <option value="">Choose group</option>
           {d.groups.map((g) => (
-            <option value={g.id}>{g.name}</option>
+            <option value={g.id}>{displayGroupName(g.name)}</option>
           ))}
         </select>
         <input
@@ -105,7 +120,7 @@ export function Students({ d }) {
             >
               <option value="">Choose group</option>
               {d.groups.map((g) => (
-                <option value={g.id}>{g.name}</option>
+                <option value={g.id}>{displayGroupName(g.name)}</option>
               ))}
             </select>
           )}
@@ -147,7 +162,7 @@ export function Students({ d }) {
               g = d.groups.find((x) => x.id === m?.group_id);
             return [
               s.full_name,
-              g?.name || "—",
+              g ? displayGroupName(g.name) : "—",
               s.phone,
               <button
                 onClick={() => {
@@ -171,6 +186,7 @@ export function Students({ d }) {
 export function Groups({ d, onRecordSaved }) {
   const [open, setOpen] = useState(null);
   const [groupEditor,setGroupEditor]=useState(null),[lessonGroup,setLessonGroup]=useState(null);
+  const [scope,setScope]=useState("active");
   async function lesson(g) {
     setLessonGroup(g);
   }
@@ -235,6 +251,7 @@ export function Groups({ d, onRecordSaved }) {
         <button onClick={createGroup}>+ Create Group</button>
         <button onClick={createIntake}>+ Create Intake</button>
         <span>{d.intakes?.length || 0} intakes</span>
+        <label>Show <select aria-label="Group status filter" value={scope} onChange={e=>setScope(e.target.value)}><option value="active">Active groups</option><option value="closed">Closed groups</option><option value="all">All groups</option></select></label>
       </div>
       {groupEditor&&<GroupEditor key={groupEditor.id||'new'} group={groupEditor.id?groupEditor:null} teachers={d.teachers||[]} onCancel={()=>setGroupEditor(null)} onSaved={row=>{onRecordSaved?.('groups',row);setGroupEditor(null);}}/>}
       {lessonForm}
@@ -248,9 +265,8 @@ export function Groups({ d, onRecordSaved }) {
           "Retention 1",
           "M3",
           "Retention 2",
-          "Actions",
         ]}
-        rows={d.groups.map((g) => {
+        rows={d.groups.filter(g=>scope==="all"||(scope==="active"?g.active!==false:g.active===false)).map((g) => {
           let m = (n) =>
             d.metrics?.find(
               (x) => x.group_id === g.id && Number(x.course_month) === n,
@@ -276,7 +292,7 @@ export function Groups({ d, onRecordSaved }) {
           const retention=n=>retentionLabel(d.metrics?.find(x=>x.group_id===g.id&&Number(x.course_month)===n),n===2?a:b);
           r12=retention(2);r23=retention(3);
           return [
-            g.name,
+            <span className="group-name-cell"><button className="group-open" onClick={() => setOpen(g.id)}>{displayGroupName(g.name)}</button><button className="icon-button" aria-label={`Edit ${displayGroupName(g.name)}`} title="Edit group" onClick={()=>setGroupEditor(g)}>✎</button>{g.active===false&&<small className="closed-label">Closed</small>}</span>,
             <button className="editcell" onClick={() => intake(g)}>
               {d.intakes.find((x) => x.id === g.intake_id)?.name ||
                 "+ Set intake"}
@@ -284,14 +300,9 @@ export function Groups({ d, onRecordSaved }) {
             g.start_date,
             a,
             b ?? "—",
-            r12,
+            <span className={r12!=="—"&&Number.parseInt(r12,10)<50?"retention-pill low-retention":"retention-pill"}>{r12}</span>,
             cc ?? "—",
-            r23,
-            <span>
-              <button onClick={() => setOpen(g.id)}>Open</button>{" "}
-              <button onClick={() => lesson(g)}>+ Add Lesson</button>
-              <button onClick={()=>setGroupEditor(g)}>Edit group</button>
-            </span>,
+            <span className={r23!=="—"&&Number.parseInt(r23,10)<50?"retention-pill low-retention":"retention-pill"}>{r23}</span>,
           ];
         })}
       />
