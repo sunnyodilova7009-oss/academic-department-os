@@ -95,6 +95,11 @@ export function App({ Students, Groups }) {
   const [page, setPage] = useState("Dashboard"),
     [email, setEmail] = useState(""),
     [pw, setPw] = useState("");
+  const [passwordSetup, setPasswordSetup] = useState(() => new URLSearchParams(window.location.search).get("setup") === "invite");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordSetupBusy, setPasswordSetupBusy] = useState(false);
+  const [passwordSetupError, setPasswordSetupError] = useState("");
   const [data, setData] = useState(emptyData),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
@@ -169,10 +174,51 @@ export function App({ Students, Groups }) {
       [table]: [...old[table].filter((x) => !matches(x)), row],
     }));
   }
+  async function saveInitialPassword(event) {
+    event.preventDefault();
+    setPasswordSetupError("");
+    if (newPassword !== confirmPassword) {
+      setPasswordSetupError("The passwords do not match.");
+      return;
+    }
+    setPasswordSetupBusy(true);
+    try {
+      const { error } = await sb.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      const url = new URL(window.location.href);
+      url.searchParams.delete("setup");
+      window.history.replaceState({}, document.title, url.toString());
+      setPasswordSetup(false);
+      setPage("Dashboard");
+    } catch (error) {
+      setPasswordSetupError(error.message || "Could not save your password. Request a new invitation link.");
+    } finally {
+      setPasswordSetupBusy(false);
+    }
+  }
   if (!authReady)
     return (
       <main>
         <p role="status">Checking sign-in…</p>
+      </main>
+    );
+  if (passwordSetup)
+    return (
+      <main className="login">
+        <form onSubmit={saveInitialPassword}>
+          <h1>Set your password</h1>
+          {session ? (
+            <>
+              <p>Choose a password to finish setting up your Academic OS account.</p>
+              <label>Password<input aria-label="New password" type="password" autoComplete="new-password" minLength="8" required value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>
+              <label>Confirm password<input aria-label="Confirm password" type="password" autoComplete="new-password" minLength="8" required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label>
+              <button disabled={passwordSetupBusy}>{passwordSetupBusy ? "Saving…" : "Save password"}</button>
+            </>
+          ) : (
+            <p role="alert">This invitation link is invalid, expired, or already used. Ask the owner to send a new setup link.</p>
+          )}
+          {passwordSetupError && <p role="alert">{passwordSetupError}</p>}
+        </form>
       </main>
     );
   if (!session)
