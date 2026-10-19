@@ -5,3 +5,53 @@
 .dashboard-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}.chart-panel{min-width:0}.chart-panel h2{font-size:18px;margin:0 0 4px}.chart-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:16px}.chart-heading label{display:flex;flex-direction:column;gap:4px;min-width:125px;color:#667085;font-size:12px}.chart-heading select{padding:8px;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#17202a}.leader-row{display:grid;grid-template-columns:26px minmax(110px,1fr) minmax(90px,1fr) 42px;gap:9px;align-items:center;margin:14px 0}.leader-rank{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#f2f4f7;font-size:12px;font-weight:700}.leader-name{font-weight:600}.leader-name small{display:block;color:#667085;font-weight:400;margin-top:3px}.group-leader{margin:16px 0}.group-leader-title{display:flex;justify-content:space-between;gap:8px;margin-bottom:6px}.group-leader small{display:block;color:#667085;margin-top:6px}.annual-chart{grid-column:1/-1}.annual-legend{display:flex;gap:18px;color:#667085;font-size:13px}.annual-legend span{display:flex;align-items:center;gap:6px}.annual-legend i{display:inline-block;width:11px;height:11px;border-radius:3px}.legend-income{background:#84caff}.legend-salary{background:#12b76a}.annual-bars{height:190px;display:grid;grid-template-columns:repeat(12,minmax(18px,1fr));gap:8px;align-items:end;padding:14px 4px 0;border-bottom:1px solid #d0d5dd}.annual-month{height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px;min-width:0}.annual-month small{color:#667085;font-size:11px}.annual-bar-pair{height:100%;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:3px}.annual-bar{width:min(16px,40%);min-height:0;border-radius:4px 4px 0 0;transition:height .2s ease}.income-bar{background:#84caff}.salary-bar{background:#12b76a}.no-data-bar{background:repeating-linear-gradient(135deg,#eaecf0,#eaecf0 3px,#fff 3px,#fff 6px)}
 @media(max-width:800px){.dashboard-chart-grid{grid-template-columns:1fr}.annual-chart{grid-column:auto}.chart-heading{flex-direction:column}.chart-heading label{width:100%}.chart-heading select{width:100%}.annual-bars{gap:4px;height:160px}.annual-bar{width:45%}}
 .admin-access{max-width:720px}.admin-access form{display:grid;gap:12px;max-width:460px}.admin-access label{display:grid;gap:5px;color:#475467}.admin-access input{padding:10px;border:1px solid #d0d5dd;border-radius:7px}.admin-access button{justify-self:start;padding:10px 14px;border:0;border-radius:7px;background:#101828;color:white}
+
+/* Phone layout: keep navigation reachable and let dense records scroll inside their own panels. */
+@media(max-width:800px){
+  html,body,#root{min-width:0;width:100%;}
+  body{overflow-x:hidden;}
+  .app{display:flex;flex-direction:column;min-height:100dvh;}
+  .app>aside{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:4px;width:100%;padding:8px max(8px,env(safe-area-inset-left));overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin;}
+  .app>aside h2{display:none;}
+  .app>aside button{flex:0 0 auto;width:auto;min-width:max-content;min-height:44px;margin:0;padding:10px 12px;white-space:nowrap;}
+  .app>main{width:100%;min-width:0;padding:16px;overflow-x:hidden;}
+  .app>main>header h1{font-size:clamp(23px,6vw,30px);margin:0 0 16px;}
+  .table{width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .table table{width:max-content;min-width:100%;}
+  .formbar{width:100%;min-width:0;}
+  .formbar>*{min-width:0;}
+  .group-academic-view,.admin-access,.panel,.card,.dashboard-chart-grid>*{min-width:0;max-width:100%;}
+  .dashboard-chart-grid{grid-template-columns:minmax(0,1fr);}
+  .annual-bars{overflow-x:auto;grid-template-columns:repeat(12,minmax(32px,1fr));}
+}
+@media(max-width:600px){
+  .app>aside{padding-top:max(6px,env(safe-area-inset-top));}
+  .app>main{padding:12px;}
+  .cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+  .card,.panel{padding:12px;}
+  .card b{font-size:clamp(19px,6vw,24px);overflow-wrap:anywhere;}
+  .formbar{align-items:stretch;gap:8px;padding:10px;}
+  .formbar label{display:flex;flex-direction:column;align-items:stretch;gap:4px;width:100%;}
+  .formbar input,.formbar select,.formbar button,.toolbar select,.editor select,.editor input{width:100%;max-width:100%;min-height:44px;}
+  .formbar>input,.formbar>select{flex:1 1 100%;}
+  .formbar>button{flex:1 1 100%;}
+  .lessonstrip{margin-inline:-2px;scroll-snap-type:x proximity;}
+  .lessonstrip button{flex:0 0 76px;min-height:52px;scroll-snap-align:start;}
+  .scorefields{width:100%;}
+  .scorefields label,.scorefields input,.scorefields button{width:100%;}
+  .retention-row{grid-template-columns:minmax(72px,1fr) minmax(64px,1.3fr) 38px;gap:7px;}
+  .leader-row{grid-template-columns:24px minmax(0,1fr) minmax(60px,1fr) 36px;gap:6px;font-size:13px;}
+  .group-name-cell{flex-wrap:wrap;}
+  .login{padding:16px;}
+  .login form,.login section{width:100%;max-width:420px;padding:20px;}
+  .login input,.login button{min-height:44px;}
+  .admin-access form{width:100%;}
+  .toolbar{margin:0 0 12px;}
+  .chart-heading{gap:8px;}
+  .annual-legend{flex-wrap:wrap;gap:8px 14px;}
+}
+@media(max-width:360px){
+  .cards{grid-template-columns:minmax(0,1fr);}
+  .retention-row{grid-template-columns:minmax(68px,1fr) minmax(54px,1fr) 36px;gap:5px;font-size:12px;}
+}
+
