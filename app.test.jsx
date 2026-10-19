@@ -31,7 +31,7 @@ vi.mock("./client.js", () => ({
   tables: { students: "students" },
   readAll: vi.fn(),
   sb: {
-    auth: { getSession: vi.fn(), onAuthStateChange: vi.fn(), signOut: vi.fn() },
+    auth: { getSession: vi.fn(), onAuthStateChange: vi.fn(), signOut: vi.fn(), updateUser: vi.fn(), resetPasswordForEmail: vi.fn() },
     functions: { invoke: vi.fn() },
     from: vi.fn(),
   },
@@ -153,7 +153,10 @@ beforeEach(() => {
   );
   readAll.mockImplementation(async (table) => fixture()[table]);
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.history.pushState({}, "", "/");
+});
 
 describe("navigation and groups", () => {
   it("loads asynchronously and visits every page without changing hook order", async () => {
@@ -178,6 +181,43 @@ describe("navigation and groups", () => {
       "permission denied",
     );
     expect(screen.queryByText("Active Students")).toBeNull();
+  });
+  it("lets an invited admin set a password from the invitation redirect", async () => {
+    window.history.pushState({}, "", "/?setup=invite");
+    sb.auth.updateUser.mockResolvedValue({ error: null });
+    readAll.mockImplementation(async (table) => {
+      const data = fixture();
+      if (table === "profiles") return [{ id: "user", role: "academic_admin", active: true }];
+      return data[table] || [];
+    });
+    render(<App Students={Students} Groups={Groups} />);
+    await screen.findByRole("heading", { name: "Set your password" });
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("New password"), "secure-pass-2026");
+    await user.type(screen.getByLabelText("Confirm password"), "secure-pass-2026");
+    await user.click(screen.getByRole("button", { name: "Save password" }));
+    expect(sb.auth.updateUser).toHaveBeenCalledWith({ password: "secure-pass-2026" });
+    expect(await screen.findByText("Active Students")).toBeTruthy();
+    expect(window.location.search).toBe("");
+  });
+  it("explains when an invitation callback has no valid session", async () => {
+    window.history.pushState({}, "", "/?setup=invite");
+    sb.auth.getSession.mockResolvedValue({ data: { session: null } });
+    render(<App Students={Students} Groups={Groups} />);
+    expect(await screen.findByText(/invalid, expired, or already used/)).toBeTruthy();
+  });
+  it("lets an invited admin request a fresh password setup link", async () => {
+    sb.auth.getSession.mockResolvedValue({ data: { session: null } });
+    sb.auth.resetPasswordForEmail.mockResolvedValue({ error: null });
+    render(<App Students={Students} Groups={Groups} />);
+    await screen.findByRole("heading", { name: "Academic Department OS" });
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Email"), "admin@example.com");
+    await user.click(screen.getByRole("button", { name: "Forgot password? Send setup link" }));
+    expect(sb.auth.resetPasswordForEmail).toHaveBeenCalledWith("admin@example.com", {
+      redirectTo: "https://academic-department-os.onrender.com/?setup=invite",
+    });
+    expect(await screen.findByText(/password setup link has been sent/)).toBeTruthy();
   });
   it("shows payroll and finance as read-only for an academic admin", async () => {
     readAll.mockImplementation(async (table) => {

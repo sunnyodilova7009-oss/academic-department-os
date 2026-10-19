@@ -48,7 +48,10 @@ Deno.serve(async (request) => {
     return json({ error: "Enter a valid email and a name under 120 characters." }, 400);
   }
 
-  const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, { data: { full_name: fullName } });
+  const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+    data: { full_name: fullName },
+    redirectTo: "https://academic-department-os.onrender.com/?setup=invite",
+  });
   if (inviteError || !inviteData.user) return json({ error: inviteError?.message || "Could not send invitation." }, 400);
 
   const profile = { id: inviteData.user.id, full_name: fullName, role: "academic_admin", active: true };
@@ -59,3 +62,4 @@ Deno.serve(async (request) => {
   }
   return json({ profile });
 });
+
