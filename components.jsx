@@ -28,6 +28,7 @@ const nav = [
 ];
 const financeOnlyTables = new Set(["periods", "payroll", "payments"]);
 const financeRoles = new Set(["owner_admin", "academic_manager", "finance", "academic_admin"]);
+const appUrl = "https://academic-department-os.onrender.com/";
 const emptyData = Object.fromEntries(
   Object.keys(tables).map((key) => [key, []]),
 );
@@ -100,6 +101,8 @@ export function App({ Students, Groups }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSetupBusy, setPasswordSetupBusy] = useState(false);
   const [passwordSetupError, setPasswordSetupError] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetError, setResetError] = useState("");
   const [data, setData] = useState(emptyData),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
@@ -196,6 +199,23 @@ export function App({ Students, Groups }) {
       setPasswordSetupBusy(false);
     }
   }
+  async function sendPasswordReset() {
+    setResetMessage("");
+    setResetError("");
+    if (!email.trim()) {
+      setResetError("Enter your email address first.");
+      return;
+    }
+    try {
+      const { error } = await sb.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${appUrl}?setup=invite`,
+      });
+      if (error) throw error;
+      setResetMessage("If this account exists, a password setup link has been sent.");
+    } catch (error) {
+      setResetError(error.message || "Could not send the password setup link.");
+    }
+  }
   if (!authReady)
     return (
       <main>
@@ -258,6 +278,9 @@ export function App({ Students, Groups }) {
             onChange={(e) => setPw(e.target.value)}
           />
           <button type="submit">Sign in</button>
+          <button type="button" onClick={sendPasswordReset}>Forgot password? Send setup link</button>
+          {resetMessage && <p role="status">{resetMessage}</p>}
+          {resetError && <p role="alert">{resetError}</p>}
           {error && <p role="alert">{error}</p>}
         </form>
       </main>
