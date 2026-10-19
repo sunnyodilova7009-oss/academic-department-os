@@ -31,7 +31,7 @@ vi.mock("./client.js", () => ({
   tables: { students: "students" },
   readAll: vi.fn(),
   sb: {
-    auth: { getSession: vi.fn(), onAuthStateChange: vi.fn(), signOut: vi.fn(), updateUser: vi.fn() },
+    auth: { getSession: vi.fn(), onAuthStateChange: vi.fn(), signOut: vi.fn(), updateUser: vi.fn(), resetPasswordForEmail: vi.fn() },
     functions: { invoke: vi.fn() },
     from: vi.fn(),
   },
@@ -205,6 +205,19 @@ describe("navigation and groups", () => {
     sb.auth.getSession.mockResolvedValue({ data: { session: null } });
     render(<App Students={Students} Groups={Groups} />);
     expect(await screen.findByText(/invalid, expired, or already used/)).toBeTruthy();
+  });
+  it("lets an invited admin request a fresh password setup link", async () => {
+    sb.auth.getSession.mockResolvedValue({ data: { session: null } });
+    sb.auth.resetPasswordForEmail.mockResolvedValue({ error: null });
+    render(<App Students={Students} Groups={Groups} />);
+    await screen.findByRole("heading", { name: "Academic Department OS" });
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Email"), "admin@example.com");
+    await user.click(screen.getByRole("button", { name: "Forgot password? Send setup link" }));
+    expect(sb.auth.resetPasswordForEmail).toHaveBeenCalledWith("admin@example.com", {
+      redirectTo: "https://academic-department-os.onrender.com/?setup=invite",
+    });
+    expect(await screen.findByText(/password setup link has been sent/)).toBeTruthy();
   });
   it("shows payroll and finance as read-only for an academic admin", async () => {
     readAll.mockImplementation(async (table) => {
