@@ -91,7 +91,7 @@ export function Students({ d, refresh, onRecordSaved }) {
         />
         <select aria-label="Student group" value={gid} onChange={(e) => setGid(e.target.value)}>
           <option value="">Choose group</option>
-          {d.groups.map((g) => (
+          {d.groups.filter(g=>g.active!==false).map((g) => (
             <option value={g.id}>{displayGroupName(g.name)}</option>
           ))}
         </select>
@@ -251,7 +251,7 @@ export function Groups({ d, onRecordSaved }) {
         <button onClick={createGroup}>+ Create Group</button>
         <button onClick={createIntake}>+ Create Intake</button>
         <span>{d.intakes?.length || 0} intakes</span>
-        <label>Show <select aria-label="Group status filter" value={scope} onChange={e=>setScope(e.target.value)}><option value="active">Active groups</option><option value="closed">Closed groups</option><option value="all">All groups</option></select></label>
+        <label>Show <select aria-label="Group status filter" value={scope} onChange={e=>setScope(e.target.value)}><option value="active">Active groups</option><option value="finished">Finished groups</option><option value="closed_early">Closed early groups</option><option value="closed">All inactive groups</option><option value="all">All groups</option></select></label>
       </div>
       {groupEditor&&<GroupEditor key={groupEditor.id||'new'} group={groupEditor.id?groupEditor:null} teachers={d.teachers||[]} onCancel={()=>setGroupEditor(null)} onSaved={row=>{onRecordSaved?.('groups',row);setGroupEditor(null);}}/>}
       {lessonForm}
@@ -266,7 +266,7 @@ export function Groups({ d, onRecordSaved }) {
           "M3",
           "Retention 2",
         ]}
-        rows={d.groups.filter(g=>scope==="all"||(scope==="active"?g.active!==false:g.active===false)).map((g) => {
+        rows={d.groups.filter(g=>scope==="all"||(scope==="active"?g.active!==false:g.active===false&&(scope==="closed"||g.closure_status===scope))).map((g) => {
           let m = (n) =>
             d.metrics?.find(
               (x) => x.group_id === g.id && Number(x.course_month) === n,
@@ -292,7 +292,7 @@ export function Groups({ d, onRecordSaved }) {
           const retention=n=>retentionLabel(d.metrics?.find(x=>x.group_id===g.id&&Number(x.course_month)===n),n===2?a:b);
           r12=retention(2);r23=retention(3);
           return [
-            <span className="group-name-cell"><button className="group-open" onClick={() => setOpen(g.id)}>{displayGroupName(g.name)}</button><button className="icon-button" aria-label={`Edit ${displayGroupName(g.name)}`} title="Edit group" onClick={()=>setGroupEditor(g)}>✎</button>{g.active===false&&<small className="closed-label">Closed</small>}</span>,
+            <span className="group-name-cell"><button className="group-open" onClick={() => setOpen(g.id)}>{displayGroupName(g.name)}</button><button className="icon-button" aria-label={`Edit ${displayGroupName(g.name)}`} title="Edit group" onClick={()=>setGroupEditor(g)}>✎</button>{g.active===false&&<small className="closed-label">{g.closure_status==='finished'?'Finished':g.closure_status==='closed_early'?'Closed early':'Closed'}</small>}</span>,
             <button className="editcell" onClick={() => intake(g)}>
               {d.intakes.find((x) => x.id === g.intake_id)?.name ||
                 "+ Set intake"}

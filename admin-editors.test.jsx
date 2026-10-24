@@ -38,3 +38,13 @@ it('shows a permission error and leaves the form available',async()=>{
 it('subtracts cover transfers exactly as the database generated total does',()=>{
   expect(payrollPartsTotal({fixed_amount:100000,attendance_amount:5000,cover_transfer:10000,adjustments:-500})).toBe(94500);
 });
+
+it.each(['finished','closed_early','active'])('saves group status %s while preserving history',async(status)=>{
+ const saved=vi.fn(),update=vi.fn(payload=>({eq:()=>({select:()=>({single:async()=>({data:{id:'g',...payload}})})})}));sb.from.mockReturnValue({update});
+ render(<GroupEditor group={{id:'g',name:'Group',teacher_id:'t',start_date:'2026-06-01',active:false,closure_status:'finished'}} teachers={[{id:'t',name:'Teacher'}]} onSaved={saved}/>);
+ fireEvent.change(screen.getByLabelText('Group status'),{target:{value:status}});
+ fireEvent.click(screen.getByRole('button',{name:'Save group'}));
+ await waitFor(()=>expect(saved).toHaveBeenCalledOnce());
+ expect(update).toHaveBeenCalledWith({name:'Group',teacher_id:'t',start_date:'2026-06-01',active:status==='active',closure_status:status==='active'?null:status});
+ expect(sb.from).toHaveBeenLastCalledWith('groups');
+});

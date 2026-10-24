@@ -49,3 +49,18 @@ it('adds the created student to the page without a full data reload',async()=>{
  expect(saved).toHaveBeenNthCalledWith(1,'students',{id:'new-student',full_name:'New Student',status:'active'});
  expect(saved).toHaveBeenNthCalledWith(2,'members',{id:'membership',student_id:'new-student',group_id:'g'});
 });
+
+it('separates finished and closed early groups and keeps their academic sheets accessible',()=>{
+ const d=fixture();d.groups.push({id:'finished',name:'Completed Group',active:false,closure_status:'finished'},{id:'early',name:'Stopped Group',active:false,closure_status:'closed_early'});
+ render(<Groups d={d}/>);
+ expect(screen.queryByRole('button',{name:'Completed Group',exact:true})).toBeNull();
+ fireEvent.change(screen.getByLabelText('Group status filter'),{target:{value:'finished'}});
+ expect(screen.getByRole('button',{name:'Completed Group',exact:true})).toBeTruthy();
+ expect(screen.queryByRole('button',{name:'Stopped Group',exact:true})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Completed Group',exact:true}));
+ expect(screen.getByText('Completed Group — Academic Sheet')).toBeTruthy();
+ fireEvent.click(screen.getByRole('button',{name:'← Groups'}));
+ fireEvent.change(screen.getByLabelText('Group status filter'),{target:{value:'closed_early'}});
+ expect(screen.getByRole('button',{name:'Stopped Group',exact:true})).toBeTruthy();
+ expect(screen.queryByRole('button',{name:'Completed Group',exact:true})).toBeNull();
+});

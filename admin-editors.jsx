@@ -4,7 +4,7 @@ import { localDate, nextLessonNumber, courseLessons, validDate } from './logic.j
 
 export function GroupEditor({ group, teachers, onSaved, onCancel }) {
   const [name,setName]=useState(group?.name||''), [teacher,setTeacher]=useState(group?.teacher_id||''), [start,setStart]=useState(group?.start_date||localDate());
-  const [active,setActive]=useState(group?.active!==false);
+  const [status,setStatus]=useState(group?.active===false?(group.closure_status||'closed'):'active');
   const [busy,setBusy]=useState(false), [error,setError]=useState('');
   const pending=useRef(false);
   async function save(e){
@@ -12,7 +12,7 @@ export function GroupEditor({ group, teachers, onSaved, onCancel }) {
     if(!name.trim()||!teacher||!validDate(start)){setError('Enter a name, teacher and valid start date.');return;}
     pending.current=true;setBusy(true);setError('');
     try{
-      const payload={name:name.trim(),teacher_id:teacher,start_date:start,active};
+      const payload={name:name.trim(),teacher_id:teacher,start_date:start,active:status==='active',...(group?{closure_status:['finished','closed_early'].includes(status)?status:null}:{})};
       const request=group?sb.from('groups').update(payload).eq('id',group.id):sb.from('groups').insert({...payload,active:true});
       const {data,error}=await request.select().single();if(error)throw error;
       onSaved(data);
@@ -22,7 +22,8 @@ export function GroupEditor({ group, teachers, onSaved, onCancel }) {
     <label>Group name <input required value={name} onChange={e=>setName(e.target.value)}/></label>
     <label>Teacher <select required value={teacher} onChange={e=>setTeacher(e.target.value)}><option value="">Choose teacher</option>{teachers.filter(t=>t.active!==false||t.id===teacher).map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></label>
     <label>Start date <input required type="date" value={start} onChange={e=>setStart(e.target.value)}/></label>
-    {group&&<label className="status-toggle"><input type="checkbox" checked={active} onChange={e=>setActive(e.target.checked)}/>{active?'Active group':'Closed group'}</label>}
+    {group&&<label>Group status <select value={status} onChange={e=>setStatus(e.target.value)}><option value="active">Active</option><option value="finished">Finished</option><option value="closed_early">Closed early</option>{group.active===false&&!group.closure_status&&<option value="closed">Closed (reason not set)</option>}</select></label>}
+    {group&&status!=='active'&&<p className="hint">This group will leave the Active list. Its students, lessons and salary history will be kept. Choose Active to reopen it.</p>}
     <button disabled={busy}>{busy?'Saving…':'Save group'}</button><button type="button" disabled={busy} onClick={onCancel}>Cancel</button>{error&&<p className="error" role="alert">{error}</p>}
   </form>;
 }

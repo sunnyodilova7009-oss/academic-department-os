@@ -1,0 +1,2 @@
+alter table public.groups add column closure_status text check (closure_status in ('finished','closed_early'));
+comment on column public.groups.closure_status is 'Reason for an inactive group: finished or closed_early. NULL preserves legacy unspecified closures. active remains the operational availability flag.';
