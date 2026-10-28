@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { LessonEditor } from "./admin-editors.jsx";
 import { sb, tables, readAll, inviteAcademicAdmin } from "./client.js";
 import {
   dashboardCounts,
@@ -634,6 +635,7 @@ function ScoreCells({ exam, student, record, onSaved }) {
 }
 
 export function AcademicSheet({ g, d, back, addLesson, onRecordSaved }) {
+  const [editingLesson, setEditingLesson] = useState(null);
   const [editedRecords, setEditedRecords] = useState({}),
     [editedScores, setEditedScores] = useState({});
   const [monthChoice, setMonth] = useState(""),
@@ -745,10 +747,14 @@ export function AcademicSheet({ g, d, back, addLesson, onRecordSaved }) {
           </select>
         </label>
         <button onClick={() => addLesson(g)}>+ Add Lesson</button>
+        <button disabled={!selected} onClick={() => setEditingLesson(selected)}>✎ Edit lesson</button>
         <button onClick={() => setShowAssessment((v) => !v)}>
           + Assessment
         </button>
       </div>
+      {editingLesson && <LessonEditor key={editingLesson.id} group={g} lessons={d.lessons} lesson={editingLesson}
+        onCancel={() => setEditingLesson(null)}
+        onSaved={row => {onRecordSaved?.("lessons", row);setMonth(row.lesson_date.slice(0,7));setLesson(row.id);setEditingLesson(null);}} />}
       {showAssessment && (
         <form className="formbar" onSubmit={createAssessment}>
           <label>
@@ -1213,4 +1219,3 @@ export function Finance({ d, refresh, onRecordSaved, readOnly = false }) {
     </>
   );
 }
-

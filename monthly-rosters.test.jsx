@@ -17,6 +17,27 @@ it('closes the lesson editor without changing the open academic sheet',()=>{
  expect(screen.getByText('Group One — Academic Sheet')).toBeTruthy();
 });
 const fixture=()=>({students:[{id:'s',full_name:'Student One',status:'active'},{id:'old',full_name:'Old Student',status:'left'}],groups:[{id:'g',name:'Group One'}],members:[{group_id:'g',student_id:'s',active:true},{group_id:'g',student_id:'old',active:false}],metrics:[],intakes:[],teachers:[],lessons:[],exams:[],scores:[],attendance:[],homework:[],rosters:[{group_id:'g',student_id:'s',period_month:'2026-10-01',status:'active'}]});
+it('keeps the edited lesson selected across months with its attendance and homework',async()=>{
+ const d=fixture();d.lessons=[{id:'l',group_id:'g',lesson_number:1,lesson_date:'2026-10-22'}];
+ d.attendance=[{id:'a',lesson_id:'l',student_id:'s',status:'present'}];
+ d.homework=[{id:'h',lesson_id:'l',student_id:'s',status:'done'}];
+ sb.from.mockReturnValue({update:payload=>({eq:()=>({select:()=>({single:async()=>({data:{...d.lessons[0],...payload}})})})})});
+ function Harness(){
+  const [data,setData]=React.useState(d);
+  return <AcademicSheet g={d.groups[0]} d={data} onRecordSaved={(table,row)=>setData(old=>({...old,[table]:old[table].map(x=>x.id===row.id?row:x)}))}/>;
+ }
+ render(<Harness/>);
+ fireEvent.click(screen.getByRole('button',{name:/Edit lesson/}));
+ fireEvent.change(screen.getByLabelText('Lesson date'),{target:{value:'2026-11-02'}});
+ fireEvent.change(screen.getByLabelText('Lesson number'),{target:{value:'5'}});
+ fireEvent.click(screen.getByRole('button',{name:'Save lesson'}));
+ await waitFor(()=>expect(screen.queryByRole('button',{name:'Save lesson'})).toBeNull());
+ expect(screen.getByRole('combobox',{name:'Month',exact:true}).value).toBe('2026-11');
+ expect(screen.getByRole('combobox',{name:'Lesson',exact:true}).value).toBe('l');
+ expect(screen.getByRole('button',{name:/L5/}).textContent).toContain('2026-11-02');
+ const values=screen.getAllByRole('combobox').map(x=>x.value);
+ expect(values).toContain('present');expect(values).toContain('done');
+});
 it('uses source monthly rosters instead of missing historical join dates',()=>{
  const d=fixture();d.rosters.push({group_id:'other',student_id:'s',period_month:'2026-10-01',status:'active'},{group_id:'g',student_id:'old',period_month:'2026-10-01',status:'left'});
  expect(dashboardCounts(d,'2026-10')).toEqual({active:1,left:1,groups:2,lessons:0});

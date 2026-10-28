@@ -28,25 +28,30 @@ export function GroupEditor({ group, teachers, onSaved, onCancel }) {
   </form>;
 }
 
-export function LessonEditor({ group, lessons, onSaved, onCancel }) {
-  const [number,setNumber]=useState(String(nextLessonNumber(lessons,group.id))),[date,setDate]=useState(localDate),[lessonType,setLessonType]=useState('regular');
+export function LessonEditor({ group, lessons, lesson, onSaved, onCancel }) {
+  const [number,setNumber]=useState(String(lesson?.lesson_number ?? nextLessonNumber(lessons,group.id))),[date,setDate]=useState(lesson?.lesson_date || localDate()),[lessonType,setLessonType]=useState('regular');
   const [busy,setBusy]=useState(false),[error,setError]=useState(''); const pending=useRef(false);
   async function save(e){
     e.preventDefault();if(pending.current)return;
     if(!validDate(date)||!Number.isInteger(Number(number))||Number(number)<1){setError('Enter a valid date and positive whole lesson number.');return;}
-    if(courseLessons(lessons,group.id).some(l=>l.lesson_number===Number(number))){setError('This lesson number already exists.');return;}
-    if(lessons.some(l=>l.group_id===group.id&&l.lesson_date===date)){setError('A lesson already exists on this date. Open it to record attendance.');return;}
-    if(!group.teacher_id){setError('Assign this group a teacher before adding a payable lesson.');return;}
+    if(courseLessons(lessons,group.id).some(l=>l.id!==lesson?.id&&l.lesson_number===Number(number))){setError('This lesson number already exists.');return;}
+    if(lessons.some(l=>l.id!==lesson?.id&&l.group_id===group.id&&l.lesson_date===date)){setError('A lesson already exists on this date. Open it to record attendance.');return;}
+    if(lesson?.source_period && date!==lesson.lesson_date && date.slice(0,7)!==lesson.source_period){setError('Keep imported lessons in their source month so their payroll remains correct.');return;}
+    if(!lesson&&!group.teacher_id){setError('Assign this group a teacher before adding a payable lesson.');return;}
     pending.current=true;setBusy(true);setError('');
     try{
-      const {data,error}=await sb.from('lessons').insert({group_id:group.id,lesson_number:Number(number),lesson_date:date,payroll_payable:lessonType!=='unpaid',is_review:lessonType==='review'}).select().single();if(error)throw error;
+      const request=lesson
+        ? sb.from('lessons').update({course_number:Number(number),lesson_date:date,numbering_date:lesson.numbering_date||lesson.lesson_date}).eq('id',lesson.id)
+        : sb.from('lessons').insert({group_id:group.id,lesson_number:Number(number),lesson_date:date,payroll_payable:lessonType!=='unpaid',is_review:lessonType==='review'});
+      const {data,error}=await request.select().single();if(error)throw error;
       onSaved(data);
     }catch(e){setError(e.message);}finally{pending.current=false;setBusy(false);}
   }
-  return <form className="formbar" onSubmit={save}><h3>{group.name} — Add lesson</h3>
+  return <form className="formbar" onSubmit={save}><h3>{group.name} — {lesson?'Edit lesson':'Add lesson'}</h3>
     <label>Lesson number <input required type="number" min="1" step="1" value={number} onChange={e=>setNumber(e.target.value)}/></label>
     <label>Lesson date <input required type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
-    <label>Lesson type <select value={lessonType} onChange={e=>setLessonType(e.target.value)}><option value="regular">Regular lesson</option><option value="review">Review lesson (LIVE pay only)</option></select></label>
+    {!lesson&&<label>Lesson type <select value={lessonType} onChange={e=>setLessonType(e.target.value)}><option value="regular">Regular lesson</option><option value="review">Review lesson (LIVE pay only)</option></select></label>}
+    {lesson&&<p className="hint">Attendance and homework stay with this lesson. Date changes can affect open payroll months. Approved salaries stay unchanged.{lesson.source_period?' Imported lessons must stay in their source month.':''}</p>}
     <button disabled={busy}>{busy?'Saving…':'Save lesson'}</button><button type="button" disabled={busy} onClick={onCancel}>Cancel</button>{error&&<p className="error" role="alert">{error}</p>}
   </form>;
 }

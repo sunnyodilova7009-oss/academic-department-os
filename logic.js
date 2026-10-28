@@ -23,18 +23,18 @@ export function validDate(value) {
   );
 }
 export function nextLessonNumber(lessons, groupId) {
-  return (courseLessons(lessons, groupId).at(-1)?.lesson_number || 0) + 1;
+  return Math.max(0, ...courseLessons(lessons, groupId).map(l => l.lesson_number)) + 1;
 }
 // Historical imports can restart their source numbers each month. Keep the
 // stored IDs and numbers intact while presenting one course-wide sequence.
 export function courseLessons(lessons, groupId) {
   let previous = 0;
   return lessons.filter(x => x.group_id === groupId).slice().sort((a, b) =>
-    dateOfLesson(a).localeCompare(dateOfLesson(b)) || Number(a.lesson_number || 0) - Number(b.lesson_number || 0) || String(a.id).localeCompare(String(b.id))
+    (a.numbering_date || dateOfLesson(a)).localeCompare(b.numbering_date || dateOfLesson(b)) || Number(a.lesson_number || 0) - Number(b.lesson_number || 0) || String(a.id).localeCompare(String(b.id))
   ).map(lesson => {
     previous = Math.max(previous + 1, Number(lesson.lesson_number) || 0);
-    return { ...lesson, lesson_number: previous };
-  });
+    return { ...lesson, lesson_number: lesson.course_number ?? previous };
+  }).sort((a,b) => dateOfLesson(a).localeCompare(dateOfLesson(b)) || a.lesson_number-b.lesson_number || String(a.id).localeCompare(String(b.id)));
 }
 export function dashboardCounts(d, month) {
   if (!month) return { active: 0, left: 0, groups: 0, lessons: 0 };
@@ -231,4 +231,3 @@ export function displayGroupName(name = "") {
     return key.startsWith("pre") ? "Pre-intermediate" : key.startsWith("upper") ? "Upper-intermediate" : key.startsWith("inter") ? "Intermediate" : key[0].toUpperCase() + key.slice(1);
   });
 }
-
