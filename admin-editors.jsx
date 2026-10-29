@@ -2,6 +2,33 @@ import React, { useRef, useState } from 'react';
 import { sb } from './client.js';
 import { localDate, nextLessonNumber, courseLessons, validDate } from './logic.js';
 
+export function TeacherEditor({ teachers=[], onSaved, onCancel }) {
+  const [name,setName]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  const pending=useRef(false);
+  async function save(e) {
+    e.preventDefault();if(pending.current)return;
+    const cleanName=name.trim().replace(/\s+/g,' ');
+    if(!cleanName){setError('Enter the teacher’s name.');return;}
+    if(teachers.some(t=>t.name.trim().replace(/\s+/g,' ').toLowerCase()===cleanName.toLowerCase())){
+      setError('A teacher with this name already exists.');return;
+    }
+    pending.current=true;setBusy(true);setError('');
+    try {
+      const {data,error}=await sb.from('teachers').insert({name:cleanName,active:true}).select().single();
+      if(error)throw error;
+      onSaved(data);
+    } catch(e) {setError(e.message);}
+    finally {pending.current=false;setBusy(false);}
+  }
+  return <form className="formbar" onSubmit={save}>
+    <h3>Add teacher</h3>
+    <label>Teacher name <input required maxLength="150" value={name} onChange={e=>setName(e.target.value)}/></label>
+    <button disabled={busy}>{busy?'Saving…':'Save teacher'}</button>
+    <button type="button" disabled={busy} onClick={onCancel}>Cancel</button>
+    {error&&<p className="error" role="alert">{error}</p>}
+  </form>;
+}
+
 export function GroupEditor({ group, teachers, onSaved, onCancel }) {
   const [name,setName]=useState(group?.name||''), [teacher,setTeacher]=useState(group?.teacher_id||''), [start,setStart]=useState(group?.start_date||localDate());
   const [status,setStatus]=useState(group?.active===false?(group.closure_status||'closed'):'active');

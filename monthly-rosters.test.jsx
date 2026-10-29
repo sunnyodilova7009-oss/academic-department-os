@@ -7,6 +7,24 @@ import {Students,Groups} from './legacy.jsx';
 import {sb} from './client.js';
 vi.mock('./client.js',()=>({tables:{},readAll:vi.fn(),sb:{rpc:vi.fn(),from:vi.fn()}}));
 afterEach(cleanup);
+it('adds a teacher and immediately makes them selectable for a new group',async()=>{
+ const insert=vi.fn(payload=>({select:()=>({single:async()=>({data:{id:'new-teacher',...payload}})})}));
+ sb.from.mockReturnValue({insert});
+ function Harness(){
+  const [data,setData]=React.useState(fixture());
+  return <Groups d={data} onRecordSaved={(table,row)=>setData(old=>({...old,[table]:[...old[table],row]}))}/>;
+ }
+ render(<Harness/>);
+ fireEvent.click(screen.getByRole('button',{name:'+ Add Teacher'}));
+ fireEvent.change(screen.getByLabelText('Teacher name'),{target:{value:'  New  Teacher  '}});
+ fireEvent.click(screen.getByRole('button',{name:'Save teacher'}));
+ await waitFor(()=>expect(screen.queryByRole('button',{name:'Save teacher'})).toBeNull());
+ expect(insert).toHaveBeenCalledWith({name:'New Teacher',active:true});
+ expect(sb.from).toHaveBeenLastCalledWith('teachers');
+ expect(screen.getByRole('status').textContent).toContain('New Teacher added');
+ fireEvent.click(screen.getByRole('button',{name:'+ Create Group'}));
+ expect(screen.getByRole('option',{name:'New Teacher'}).value).toBe('new-teacher');
+});
 it('closes the lesson editor without changing the open academic sheet',()=>{
  const d=fixture();render(<Groups d={d}/>);
  fireEvent.click(screen.getByRole('button',{name:'Group One',exact:true}));

@@ -3,7 +3,7 @@ import React, { useState, useRef } from "react";
 import { sb } from "./client.js";
 import { AcademicSheet, Table } from "./components.jsx";
 import { localDate, nextLessonNumber, validDate, courseLessons, retentionLabel, displayGroupName } from "./logic.js";
-import { GroupEditor, LessonEditor } from './admin-editors.jsx';
+import { GroupEditor, LessonEditor, TeacherEditor } from './admin-editors.jsx';
 
 export function Students({ d, refresh, onRecordSaved }) {
   const [saving,setSaving]=useState(false);const pendingSave=useRef(false);
@@ -184,6 +184,7 @@ export function Students({ d, refresh, onRecordSaved }) {
   );
 }
 export function Groups({ d, onRecordSaved }) {
+  const [showTeacher,setShowTeacher]=useState(false),[teacherMessage,setTeacherMessage]=useState('');
   const [open, setOpen] = useState(null);
   const [groupEditor,setGroupEditor]=useState(null),[lessonGroup,setLessonGroup]=useState(null);
   const [scope,setScope]=useState("active");
@@ -250,10 +251,13 @@ export function Groups({ d, onRecordSaved }) {
         <b>Groups & Intakes</b>
         <button onClick={createGroup}>+ Create Group</button>
         <button onClick={createIntake}>+ Create Intake</button>
+        <button onClick={()=>{setShowTeacher(true);setTeacherMessage('');}}>+ Add Teacher</button>
         <span>{d.intakes?.length || 0} intakes</span>
         <label>Show <select aria-label="Group status filter" value={scope} onChange={e=>setScope(e.target.value)}><option value="active">Active groups</option><option value="finished">Finished groups</option><option value="closed_early">Closed early groups</option><option value="closed">All inactive groups</option><option value="all">All groups</option></select></label>
       </div>
       {groupEditor&&<GroupEditor key={groupEditor.id||'new'} group={groupEditor.id?groupEditor:null} teachers={d.teachers||[]} onCancel={()=>setGroupEditor(null)} onSaved={row=>{onRecordSaved?.('groups',row);setGroupEditor(null);}}/>}
+      {showTeacher&&<TeacherEditor teachers={d.teachers||[]} onCancel={()=>setShowTeacher(false)} onSaved={row=>{onRecordSaved?.('teachers',row);setShowTeacher(false);setTeacherMessage(row.name+' added. You can now select this teacher when creating or editing a group.');}}/>}
+      {teacherMessage&&<p role="status">{teacherMessage}</p>}
       {lessonForm}
       <Table
         heads={[

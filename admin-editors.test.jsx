@@ -2,11 +2,28 @@ import React from 'react';
 import { afterEach,expect,it,vi } from 'vitest';
 import { cleanup,fireEvent,render,screen,waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { GroupEditor,LessonEditor } from './admin-editors.jsx';
+import { GroupEditor,LessonEditor,TeacherEditor } from './admin-editors.jsx';
 import { payrollPartsTotal } from './logic.js';
 import { sb } from './client.js';
 vi.mock('./client.js',()=>({sb:{from:vi.fn()}}));
 afterEach(cleanup);
+it('rejects duplicate teacher names after trimming and ignores case',async()=>{
+ const insert=vi.fn();sb.from.mockReturnValue({insert});
+ render(<TeacherEditor teachers={[{name:'Sarvar'}]} onSaved={vi.fn()}/>);
+ fireEvent.change(screen.getByLabelText('Teacher name'),{target:{value:'  SARVAR  '}});
+ fireEvent.click(screen.getByRole('button',{name:'Save teacher'}));
+ expect((await screen.findByRole('alert')).textContent).toContain('already exists');
+ expect(insert).not.toHaveBeenCalled();
+});
+it('reports a failed teacher save without claiming success',async()=>{
+ const saved=vi.fn();
+ sb.from.mockReturnValue({insert:()=>({select:()=>({single:async()=>({error:{message:'Permission denied'}})})})});
+ render(<TeacherEditor onSaved={saved}/>);
+ fireEvent.change(screen.getByLabelText('Teacher name'),{target:{value:'New Teacher'}});
+ fireEvent.click(screen.getByRole('button',{name:'Save teacher'}));
+ expect((await screen.findByRole('alert')).textContent).toBe('Permission denied');
+ expect(saved).not.toHaveBeenCalled();
+});
 it('creates a group with the selected teacher in one save',async()=>{
   const saved=vi.fn(),insert=vi.fn(payload=>({select:()=>({single:async()=>({data:{id:'new',...payload}})})}));sb.from.mockReturnValue({insert});
   render(<GroupEditor teachers={[{id:'t',name:'Teacher One',active:true}]} onSaved={saved}/>);
