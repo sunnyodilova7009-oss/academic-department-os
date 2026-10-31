@@ -1,0 +1,28 @@
+.save-success{display:block;color:#067647;font-size:13px;margin-top:5px}
+.bulk-review{max-width:760px;margin:auto}
+.bulk-review h3{margin-top:0}
+.bulk-students{display:grid;gap:8px}
+.bulk-student{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px;border:1px solid #e4e7ec;border-radius:10px}
+.bulk-student span{min-width:0;overflow-wrap:anywhere}
+.bulk-student small{display:block;margin-top:4px;color:#667085}
+.bulk-student select,.bulk-actions button{min-height:44px;padding:10px 12px;border:1px solid #cfd4dc;border-radius:8px;background:white;font:inherit}
+.bulk-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;position:sticky;bottom:0;background:white;padding:16px 0;margin-top:10px}
+.bulk-actions button[type=submit]{background:#101828;color:white}
+.academic-shortcuts small{flex-basis:100%}
+.academic-records select{min-height:44px}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #84adff;outline-offset:2px}
+@media(max-width:600px){
+  .table.academic-records{overflow:visible;border:0;background:transparent}
+  .table.academic-records table,.table.academic-records tbody{display:block;width:100%;min-width:0}
+  .academic-records thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+  .academic-records tbody tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;padding:14px;background:white;border:1px solid #e4e7ec;border-radius:12px;margin-bottom:10px}
+  .academic-records td{display:block;border:0;padding:0;white-space:normal;min-width:0}
+  .academic-records td:first-child{grid-column:1/-1;font-weight:600;overflow-wrap:anywhere}
+  .academic-records td:not(:first-child)::before{content:attr(data-label);display:block;margin-bottom:5px;font-size:12px;color:#667085}
+  .academic-records td select{width:100%;font-size:16px;min-height:46px}
+  .bulk-review{padding:12px}
+  .bulk-student{gap:8px;padding:10px}
+  .bulk-student select{max-width:45%;font-size:16px}
+  .bulk-actions button{flex:1}
+  .formbar input,.formbar select{font-size:16px}
+}

@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { LessonEditor } from "./admin-editors.jsx";
+import { BulkMarks } from "./academic-bulk.jsx";
+import "./academic.css";
 import { sb, tables, readAll, inviteAcademicAdmin } from "./client.js";
 import {
   dashboardCounts,
@@ -65,9 +67,9 @@ export function Card({ n, t }) {
     </div>
   );
 }
-export function Table({ heads, rows }) {
+export function Table({ heads, rows, className = "" }) {
   return (
-    <div className="table">
+    <div className={"table " + className}>
       <table>
         <thead>
           <tr>
@@ -82,7 +84,7 @@ export function Table({ heads, rows }) {
           {rows.map((row, i) => (
             <tr key={i}>
               {row.map((value, j) => (
-                <td key={j}>{value ?? "—"}</td>
+                <td key={j} data-label={heads[j]}>{value ?? "—"}</td>
               ))}
             </tr>
           ))}
@@ -490,7 +492,8 @@ function RetentionChart({ d }) {
   </section>;
 }
 
-function AcademicCell({ record, lessonId, studentId, type, label, onSaved }) {
+function AcademicCell({ record, lessonId, studentId, type, label, onSaved, onBusy }) {
+  const [saved,setSaved]=useState(false),[retryValue,setRetryValue]=useState(null);
   const [value, setValue] = useState(record?.status || ""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -502,6 +505,9 @@ function AcademicCell({ record, lessonId, studentId, type, label, onSaved }) {
   async function save(next) {
     if (pending.current || !next || next === value) return;
     pending.current = true;
+    onBusy?.(1);
+    setSaved(false);
+    setRetryValue(next);
     setBusy(true);
     setError("");
     try {
@@ -515,11 +521,13 @@ function AcademicCell({ record, lessonId, studentId, type, label, onSaved }) {
         .single();
       if (error) throw error;
       setValue(data.status);
+      setSaved(true);
       onSaved(data);
     } catch (e) {
-      setError(e.message);
+      setError("Not saved. Please retry.");
     } finally {
       pending.current = false;
+      onBusy?.(-1);
       setBusy(false);
     }
   }
@@ -541,9 +549,10 @@ function AcademicCell({ record, lessonId, studentId, type, label, onSaved }) {
         ))}
       </select>
       {busy && <small role="status"> Saving…</small>}
+      {!busy&&saved&&!error&&<small className="save-success" role="status">Saved ✓</small>}
       {error && (
         <small className="error" role="alert">
-          {error}
+          {error} <button type="button" disabled={busy} onClick={()=>save(retryValue)}>Retry</button>
         </small>
       )}
     </>
@@ -635,6 +644,8 @@ function ScoreCells({ exam, student, record, onSaved }) {
 }
 
 export function AcademicSheet({ g, d, back, addLesson, onRecordSaved }) {
+  const [bulk,setBulk]=useState(null),[bulkMessage,setBulkMessage]=useState('');
+  const [cellPending,setCellPending]=useState(0);
   const [editingLesson, setEditingLesson] = useState(null);
   const [editedRecords, setEditedRecords] = useState({}),
     [editedScores, setEditedScores] = useState({});
@@ -648,6 +659,12 @@ export function AcademicSheet({ g, d, back, addLesson, onRecordSaved }) {
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const pending = useRef(false);
+  if(bulk) return <BulkMarks {...bulk} onCancel={()=>setBulk(null)} onSaved={rows=>{
+    setEditedRecords(old=>({...old,...Object.fromEntries(rows.map(r=>[`${bulk.lesson.id}:${r.student_id}:${bulk.type}`,r]))}));
+    rows.forEach(r=>onRecordSaved?.(bulk.type,r));
+    setBulkMessage(`Saved ${rows.length} ${bulk.type==='attendance'?'attendance':'homework'} changes for L${bulk.lesson.lesson_number} · ${bulk.lesson.lesson_date}.`);
+    setBulk(null);
+  }}/>;
   if (!g)
     return (
       <>
@@ -800,7 +817,18 @@ export function AcademicSheet({ g, d, back, addLesson, onRecordSaved }) {
         ))}
       </div>
       {!selected && <p>No lessons in this month.</p>}
+      {selected&&<div className="formbar academic-shortcuts">
+        <span>Lesson shortcuts</span>
+        {['attendance','homework'].map(type=><button key={type} disabled={!students.length||cellPending>0} onClick={()=>{
+          setBulkMessage('');
+          setBulk({type,lesson:selected,groupName:displayGroupName(g.name),students,
+            records:students.map(s=>editedRecords[`${selected.id}:${s.id}:${type}`]||d[type].find(r=>r.lesson_id===selected.id&&r.student_id===s.id)).filter(Boolean)});
+        }}>{type==='attendance'?'Mark everyone present':'Mark everyone done'}</button>)}
+        <small className="hint">Review and change exceptions before saving.</small>
+      </div>}
+      {bulkMessage&&<p className="save-success" role="status">{bulkMessage}</p>}
       <Table
+        className="academic-records"
         heads={["Student", "LIVE", "HW"]}
         rows={students.map((s) => [
           s.full_name,
@@ -811,6 +839,7 @@ export function AcademicSheet({ g, d, back, addLesson, onRecordSaved }) {
                 lessonId={selected.id}
                 studentId={s.id}
                 type={type}
+                onBusy={change=>setCellPending(count=>Math.max(0,count+change))}
                 label={`${s.full_name} ${type === "attendance" ? "LIVE" : "HW"}`}
                 record={
                   editedRecords[`${selected.id}:${s.id}:${type}`] ||

@@ -7,6 +7,18 @@ import {Students,Groups} from './legacy.jsx';
 import {sb} from './client.js';
 vi.mock('./client.js',()=>({tables:{},readAll:vi.fn(),sb:{rpc:vi.fn(),from:vi.fn()}}));
 afterEach(cleanup);
+it('saves bulk attendance back into the selected lesson controls',async()=>{
+ const d=fixture();d.lessons=[{id:'lesson',group_id:'g',lesson_number:1,lesson_date:'2026-10-28'}];
+ const saved=vi.fn();sb.from.mockReturnValue({upsert:rows=>({select:async()=>({data:rows})})});
+ render(<AcademicSheet g={d.groups[0]} d={d} onRecordSaved={saved}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Mark everyone present'}));
+ expect(screen.queryByRole('button',{name:'Mark everyone done'})).toBeNull();
+ fireEvent.click(screen.getByRole('button',{name:'Save changes'}));
+ await screen.findByRole('button',{name:'Mark everyone present'});
+ expect(screen.getByRole('combobox',{name:'Student One LIVE'}).value).toBe('present');
+ expect(screen.getByRole('status').textContent).toContain('Saved 1 attendance changes');
+ expect(saved).toHaveBeenCalledWith('attendance',{lesson_id:'lesson',student_id:'s',status:'present'});
+});
 it('adds a teacher and immediately makes them selectable for a new group',async()=>{
  const insert=vi.fn(payload=>({select:()=>({single:async()=>({data:{id:'new-teacher',...payload}})})}));
  sb.from.mockReturnValue({insert});

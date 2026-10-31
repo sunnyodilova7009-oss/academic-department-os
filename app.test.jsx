@@ -398,9 +398,8 @@ describe("academic records", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Ali LIVE" }), {
       target: { value: "present" },
     });
-    expect((await screen.findByRole("alert")).textContent).toBe(
-      "permission denied",
-    );
+    expect((await screen.findByRole("alert")).textContent).toContain("Not saved. Please retry.");
+    expect(screen.getByRole("button", {name:"Retry"})).toBeTruthy();
     expect(screen.getByRole("combobox", { name: "Ali LIVE" }).value).toBe("");
   });
   it("continues numbering across calendar months", () => {
@@ -542,4 +541,3 @@ describe("monthly counts and finance", () => {
     ).toBe(8432332);
   });
 });
-
