@@ -558,7 +558,7 @@ function AcademicCell({ record, lessonId, studentId, type, label, onSaved, onBus
     </>
   );
 }
-function ScoreCells({ exam, student, record, onSaved }) {
+export function ScoreCells({ exam, student, record, onSaved }) {
   const [values, setValues] = useState({
     test_score: record?.test_score ?? "",
     speaking_score: record?.speaking_score ?? "",
@@ -592,19 +592,19 @@ function ScoreCells({ exam, student, record, onSaved }) {
       const payload = {
         exam_id: exam.id,
         student_id: student.id,
-        score: record?.score ?? 0,
+        score: null,
         test_score: values.test_score === "" ? null : Number(values.test_score),
         speaking_score:
           values.speaking_score === "" ? null : Number(values.speaking_score),
       };
-      const { error } = await sb
+      const { data, error } = await sb
         .from("exam_scores")
         .upsert(payload, { onConflict: "exam_id,student_id" })
         .select()
         .single();
       if (error) throw error;
       saved.current = { ...values };
-      onSaved(payload);
+      onSaved(data);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -614,6 +614,7 @@ function ScoreCells({ exam, student, record, onSaved }) {
   }
   return (
     <div className="scorefields">
+      <small>Leave blank if not assessed.</small>
       {["test_score", "speaking_score"].map((field) => (
         <label key={field}>
           {field === "test_score" ? "Test" : "Speaking"}{" "}
@@ -1248,3 +1249,4 @@ export function Finance({ d, refresh, onRecordSaved, readOnly = false }) {
     </>
   );
 }
+
